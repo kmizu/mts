@@ -1,0 +1,23 @@
+{
+  "tasks": {
+    "dev": "deno run --watch --allow-read --allow-write src/cli.ts",
+    "start": "deno run --allow-read --allow-write --allow-env src/cli.ts",
+    "repl": "deno run --allow-read --allow-write --allow-env src/cli.ts",
+    "test": "deno test --allow-read --allow-write",
+    "fmt": "deno fmt",
+    "lint": "deno lint"
+  },
+  "compilerOptions": {
+    "strict": true
+  },
+  "fmt": {
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "singleQuote": false
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  }
+}
