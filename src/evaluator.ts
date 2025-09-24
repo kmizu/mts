@@ -414,8 +414,16 @@ export class Evaluator {
     const value = this.evaluateExpression(expr.expression, env);
 
     for (const matchCase of expr.cases) {
-      if (this.matchesPattern(value, matchCase.pattern, env)) {
-        return this.evaluateExpression(matchCase.body, env);
+      const matchEnv = env.extend();
+      if (this.matchesPattern(value, matchCase.pattern, matchEnv)) {
+        // Check guard condition if present
+        if (matchCase.guard) {
+          const guardValue = this.evaluateExpression(matchCase.guard, matchEnv);
+          if (!this.isTruthy(guardValue)) {
+            continue; // Guard failed, try next case
+          }
+        }
+        return this.evaluateExpression(matchCase.body, matchEnv);
       }
     }
 
@@ -426,6 +434,9 @@ export class Evaluator {
     switch (stmt.kind) {
       case "LetStatement":
         this.evaluateLetStatement(stmt as LetStatement, env);
+        break;
+      case "ExpressionStatement":
+        this.evaluateExpression((stmt as any).expression, env);
         break;
 
       default:

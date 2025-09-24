@@ -77,7 +77,7 @@ export class TypeInferrer {
       // Apply substitution to environment
       this.applySubstitutionToEnv(env, substitution);
 
-      // Apply substitution to the inferred type if it's a variable declaration
+      // Handle let expressions at top level
       if (expr.kind === "VariableDeclaration") {
         const scheme = env.get(expr.identifier.name);
         if (scheme) {

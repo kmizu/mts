@@ -233,11 +233,58 @@ Deno.test("Evaluator - match expressions", () => {
     evaluate(`
     match 5 {
       1 => "one",
-      2 => "two", 
+      2 => "two",
       _ => "other"
     }
   `),
     "other",
+  );
+});
+
+Deno.test("Evaluator - match expressions with guards", () => {
+  assertEquals(
+    evaluate(`
+    match 5 {
+      x if x < 0 => "negative",
+      x if x == 0 => "zero",
+      x if x > 0 => "positive"
+    }
+  `),
+    "positive",
+  );
+
+  assertEquals(
+    evaluate(`
+    match -10 {
+      x if x < 0 => "negative",
+      x if x == 0 => "zero",
+      x if x > 0 => "positive"
+    }
+  `),
+    "negative",
+  );
+
+  assertEquals(
+    evaluate(`
+    match 0 {
+      x if x < 0 => "negative",
+      x if x == 0 => "zero",
+      x if x > 0 => "positive"
+    }
+  `),
+    "zero",
+  );
+
+  assertEquals(
+    evaluate(`
+    match 150 {
+      x if x > 100 => "large",
+      x if x > 50 => "medium",
+      x if x > 0 => "small",
+      _ => "other"
+    }
+  `),
+    "large",
   );
 });
 

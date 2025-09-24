@@ -44,7 +44,7 @@ function createFunctionType(paramTypes: Type[], returnType: Type): FunctionType 
   return { kind: "FunctionType", paramTypes, returnType };
 }
 
-let typeVarCounter = 0;
+let typeVarCounter = 10000; // Start from a high number to avoid conflicts with types.ts
 function createTypeVar(name?: string): TypeVar {
   return { kind: "TypeVar", id: typeVarCounter++, name };
 }
