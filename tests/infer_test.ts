@@ -314,6 +314,49 @@ Deno.test("Type Inference - mixed array types", () => {
   );
 });
 
+// ========== Dictionary Type Inference ==========
+
+Deno.test("Type Inference - string dictionary", () => {
+  const env = inferType('let dict = ["name": "Alice", "city": "Tokyo"]');
+  const scheme = env.get("dict");
+  assertEquals(scheme?.type.kind, "DictType");
+  assertEquals((scheme?.type as any).keyType.kind, "StringType");
+  assertEquals((scheme?.type as any).valueType.kind, "StringType");
+});
+
+Deno.test("Type Inference - number key dictionary", () => {
+  const env = inferType('let nums = [1: "one", 2: "two", 3: "three"]');
+  const scheme = env.get("nums");
+  assertEquals(scheme?.type.kind, "DictType");
+  assertEquals((scheme?.type as any).keyType.kind, "NumberType");
+  assertEquals((scheme?.type as any).valueType.kind, "StringType");
+});
+
+Deno.test("Type Inference - mixed value dictionary", () => {
+  // Mixed value types in dictionaries should fail type inference
+  assertThrows(
+    () => inferType('let mixed = ["str": "hello", "num": 42]'),
+    TypeError,
+    "Cannot unify types"
+  );
+});
+
+Deno.test("Type Inference - dictionary with type annotation", () => {
+  // Test dictionary type annotation
+  const env = inferType('let dict: [string : number] = ["a": 1, "b": 2]');
+  const scheme = env.get("dict");
+  assertEquals(scheme?.type.kind, "DictType");
+  assertEquals((scheme?.type as any).keyType.kind, "StringType");
+  assertEquals((scheme?.type as any).valueType.kind, "NumberType");
+});
+
+Deno.test("Type Inference - dictionary access", () => {
+  // Dictionary access returns the value type
+  const env = inferType('let dict = ["key": 42]; let val = dict["key"]');
+  const scheme = env.get("val");
+  assertEquals(scheme?.type.kind, "NumberType");
+});
+
 // ========== Polymorphic Type Inference ==========
 
 Deno.test("Type Inference - polymorphic identity function", () => {

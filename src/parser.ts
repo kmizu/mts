@@ -341,9 +341,9 @@ export class Parser {
       return this.parseMatchExpression();
     }
 
-    // Array literal
+    // Array or Dictionary literal
     if (this.match("LEFT_BRACKET")) {
-      return this.parseArrayExpression();
+      return this.parseArrayOrDictionaryExpression();
     }
 
     // Block or Object literal
@@ -529,21 +529,55 @@ export class Parser {
     );
   }
 
-  private parseArrayExpression(): ArrayExpression {
-    const elements: Expression[] = [];
-
-    if (!this.check("RIGHT_BRACKET")) {
-      do {
-        elements.push(this.parseExpression());
-      } while (this.match("COMMA"));
+  private parseArrayOrDictionaryExpression(): Expression {
+    // Empty bracket: return empty array
+    if (this.check("RIGHT_BRACKET")) {
+      this.advance();
+      return {
+        kind: "ArrayExpression",
+        elements: [],
+      };
     }
 
-    this.consume("RIGHT_BRACKET", "Expected ']' after array elements");
+    // Parse first expression
+    const firstExpr = this.parseExpression();
 
-    return {
-      kind: "ArrayExpression",
-      elements,
-    };
+    // Check if this is a dictionary (has colon after first expression)
+    if (this.match("COLON")) {
+      // This is a dictionary literal
+      const firstValue = this.parseExpression();
+      const entries: any[] = [{ key: firstExpr, value: firstValue }];
+
+      // Parse remaining entries
+      while (this.match("COMMA")) {
+        if (this.check("RIGHT_BRACKET")) break; // Trailing comma
+        const key = this.parseExpression();
+        this.consume("COLON", "Expected ':' in dictionary entry");
+        const value = this.parseExpression();
+        entries.push({ key, value });
+      }
+
+      this.consume("RIGHT_BRACKET", "Expected ']' after dictionary entries");
+      return {
+        kind: "DictionaryExpression",
+        entries,
+      };
+    } else {
+      // This is an array literal
+      const elements: Expression[] = [firstExpr];
+
+      // Parse remaining elements
+      while (this.match("COMMA")) {
+        if (this.check("RIGHT_BRACKET")) break; // Trailing comma
+        elements.push(this.parseExpression());
+      }
+
+      this.consume("RIGHT_BRACKET", "Expected ']' after array elements");
+      return {
+        kind: "ArrayExpression",
+        elements,
+      };
+    }
   }
 
   private parseBlockOrObjectExpression(): Expression {
@@ -783,6 +817,21 @@ export class Parser {
         };
       }
 
+      // Dict<K, V> syntax
+      if (name === "Dict" && this.match("LESS")) {
+        const keyType = this.parseTypeExpression();
+        this.consume("COMMA", "Expected ',' after dictionary key type");
+        const valueType = this.parseTypeExpression();
+        this.consume("GREATER", "Expected '>' after dictionary value type");
+
+        return {
+          kind: "DictionaryTypeExpression",
+          keyType,
+          valueType,
+          loc: this.previous().location,
+        };
+      }
+
       // Type variable
       return {
         kind: "TypeVariable",
@@ -791,16 +840,31 @@ export class Parser {
       };
     }
 
-    // Array type: [elementType]
+    // Array type: [elementType] or Dictionary type: [keyType : valueType]
     if (this.match("LEFT_BRACKET")) {
-      const elementType = this.parseTypeExpression();
-      this.consume("RIGHT_BRACKET", "Expected ']' after array element type");
+      const firstType = this.parseTypeExpression();
 
-      return {
-        kind: "ArrayTypeExpression",
-        elementType,
-        loc: this.previous().location,
-      };
+      // Check if this is a dictionary type (has colon after first type)
+      if (this.match("COLON")) {
+        const valueType = this.parseTypeExpression();
+        this.consume("RIGHT_BRACKET", "Expected ']' after dictionary value type");
+
+        return {
+          kind: "DictionaryTypeExpression",
+          keyType: firstType,
+          valueType,
+          loc: this.previous().location,
+        };
+      } else {
+        // This is an array type
+        this.consume("RIGHT_BRACKET", "Expected ']' after array element type");
+
+        return {
+          kind: "ArrayTypeExpression",
+          elementType: firstType,
+          loc: this.previous().location,
+        };
+      }
     }
 
     // Handle null and undefined as special keywords

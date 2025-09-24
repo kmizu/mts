@@ -120,6 +120,44 @@ Deno.test("Parser - array expression", () => {
   assertEquals(arr.elements[2].value, 3);
 });
 
+Deno.test("Parser - dictionary expression", () => {
+  const parser = new Parser('["key": "value", "num": 42]');
+  const ast = parser.parse();
+
+  assertEquals(ast.body[0].kind, "DictionaryExpression");
+  const dict = ast.body[0] as any;
+  assertEquals(dict.entries.length, 2);
+
+  assertEquals(dict.entries[0].key.value, "key");
+  assertEquals(dict.entries[0].value.value, "value");
+  assertEquals(dict.entries[1].key.value, "num");
+  assertEquals(dict.entries[1].value.value, 42);
+});
+
+Deno.test("Parser - dictionary with number keys", () => {
+  const parser = new Parser('[1: "one", 2: "two"]');
+  const ast = parser.parse();
+
+  assertEquals(ast.body[0].kind, "DictionaryExpression");
+  const dict = ast.body[0] as any;
+  assertEquals(dict.entries.length, 2);
+
+  assertEquals(dict.entries[0].key.value, 1);
+  assertEquals(dict.entries[0].value.value, "one");
+  assertEquals(dict.entries[1].key.value, 2);
+  assertEquals(dict.entries[1].value.value, "two");
+});
+
+Deno.test("Parser - empty array", () => {
+  // Empty brackets should parse as array
+  const parser = new Parser("[]");
+  const ast = parser.parse();
+
+  assertEquals(ast.body[0].kind, "ArrayExpression");
+  const arr = ast.body[0] as any;
+  assertEquals(arr.elements.length, 0);
+});
+
 Deno.test("Parser - object expression", () => {
   const parser = new Parser(`{ name: "John", age: 30 }`);
   const ast = parser.parse();

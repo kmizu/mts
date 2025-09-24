@@ -6,6 +6,7 @@ import {
   booleanType,
   composeSubstitutions,
   Constraint,
+  dictType,
   freeTypeVars,
   freeTypeVarsInEnv,
   freshTypeVar,
@@ -35,6 +36,8 @@ import {
   BlockExpression,
   BooleanLiteral,
   CallExpression,
+  DictionaryExpression,
+  DictionaryTypeExpression,
   Expression,
   FunctionExpression,
   Identifier,
@@ -47,6 +50,7 @@ import {
   ObjectExpression,
   Program,
   StringLiteral,
+  TypeExpression,
   UnaryExpression,
   UndefinedLiteral,
   VariableDeclaration,
@@ -113,6 +117,9 @@ export class TypeInferrer {
 
       case "ArrayExpression":
         return this.inferArrayExpression(expr, env);
+
+      case "DictionaryExpression":
+        return this.inferDictionaryExpression(expr, env);
 
       case "ObjectExpression":
         return this.inferObjectExpression(expr, env);
@@ -198,6 +205,30 @@ export class TypeInferrer {
     return arrayType(firstType);
   }
 
+  private inferDictionaryExpression(expr: DictionaryExpression, env: TypeEnv): Type {
+    if (expr.entries.length === 0) {
+      // Empty dictionary gets fresh type variables for key and value
+      return dictType(freshTypeVar("K"), freshTypeVar("V"));
+    }
+
+    // Infer types of first entry
+    const firstEntry = expr.entries[0];
+    const firstKeyType = this.inferExpression(firstEntry.key, env);
+    const firstValueType = this.inferExpression(firstEntry.value, env);
+
+    // All keys must have the same type, all values must have the same type
+    for (let i = 1; i < expr.entries.length; i++) {
+      const entry = expr.entries[i];
+      const keyType = this.inferExpression(entry.key, env);
+      const valueType = this.inferExpression(entry.value, env);
+
+      this.addConstraint(firstKeyType, keyType);
+      this.addConstraint(firstValueType, valueType);
+    }
+
+    return dictType(firstKeyType, firstValueType);
+  }
+
   private inferObjectExpression(expr: ObjectExpression, env: TypeEnv): Type {
     const fields = new Map<string, Type>();
 
@@ -264,6 +295,11 @@ export class TypeInferrer {
       case "ArrayTypeExpression":
         const elementType = this.typeExpressionToType(typeExpr.elementType);
         return arrayType(elementType);
+
+      case "DictionaryTypeExpression":
+        const keyType = this.typeExpressionToType(typeExpr.keyType);
+        const valueType = this.typeExpressionToType(typeExpr.valueType);
+        return dictType(keyType, valueType);
 
       case "FunctionTypeExpression":
         const paramTypes = typeExpr.paramTypes.map((pt: any) => this.typeExpressionToType(pt));
@@ -458,18 +494,35 @@ export class TypeInferrer {
   }
 
   private inferIndexExpression(expr: IndexExpression, env: TypeEnv): Type {
-    const arrType = this.inferExpression(expr.array, env);
+    const containerType = this.inferExpression(expr.array, env);
     const indexType = this.inferExpression(expr.index, env);
 
-    // Index should be a number
-    this.addConstraint(indexType, numberType());
+    // Create fresh type variable for the result
+    const resultType = freshTypeVar("T");
 
-    // Array should be [T] for some T
-    const elementType = freshTypeVar("T");
-    const expectedArrayType = arrayType(elementType);
-    this.addConstraint(arrType, expectedArrayType);
+    // The container could be either an array [T] or a dictionary Dict<K, V>
+    // For arrays: index must be number, result is element type
+    // For dictionaries: index can be any type (key type), result is value type
 
-    return elementType;
+    // Check if the container is a dictionary literal
+    if (expr.array.kind === "DictionaryExpression") {
+      // Direct dictionary access
+      this.addConstraint(containerType, dictType(indexType, resultType));
+    } else if (expr.index.kind === "StringLiteral") {
+      // String literal index strongly suggests dictionary access
+      this.addConstraint(containerType, dictType(indexType, resultType));
+    } else {
+      // For all other cases (number literals, variables, expressions),
+      // default to array for backwards compatibility
+      // Arrays are the common case for numeric indexing
+      this.addConstraint(containerType, arrayType(resultType));
+      this.addConstraint(indexType, numberType());
+
+      // Note: This means dictionary access with non-string keys requires
+      // the dictionary to be directly created, not through a variable
+    }
+
+    return resultType;
   }
 
   private inferMatchExpression(expr: MatchExpression, env: TypeEnv): Type {
@@ -567,6 +620,16 @@ export class TypeInferrer {
 
     if (type1.kind === "ArrayType" && type2.kind === "ArrayType") {
       return this.unify(type1.elementType, type2.elementType);
+    }
+
+    if (type1.kind === "DictType" && type2.kind === "DictType") {
+      // Unify dictionary types - both key and value types must match
+      let substitution = this.unify(type1.keyType, type2.keyType);
+      const valueMgu = this.unify(
+        applySubstitution(substitution, type1.valueType),
+        applySubstitution(substitution, type2.valueType)
+      );
+      return composeSubstitutions(valueMgu, substitution);
     }
 
     if (type1.kind === "ObjectType" && type2.kind === "ObjectType") {

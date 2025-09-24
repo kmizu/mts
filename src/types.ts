@@ -38,6 +38,13 @@ export type ArrayType = {
   elementType: Type;
 };
 
+// Dictionary/Map type
+export type DictType = {
+  kind: "DictType";
+  keyType: Type;
+  valueType: Type;
+};
+
 // Object/Record type
 export type ObjectType = {
   kind: "ObjectType";
@@ -61,6 +68,7 @@ export type Type =
   | UndefinedType
   | UnitType
   | ArrayType
+  | DictType
   | ObjectType
   | FunctionType;
 
@@ -124,6 +132,14 @@ export function arrayType(elementType: Type): ArrayType {
   };
 }
 
+export function dictType(keyType: Type, valueType: Type): DictType {
+  return {
+    kind: "DictType",
+    keyType,
+    valueType,
+  };
+}
+
 export function objectType(fields: Map<string, Type>): ObjectType {
   return {
     kind: "ObjectType",
@@ -147,6 +163,12 @@ export function applySubstitution(sub: Substitution, type: Type): Type {
 
     case "ArrayType":
       return arrayType(applySubstitution(sub, type.elementType));
+
+    case "DictType":
+      return dictType(
+        applySubstitution(sub, type.keyType),
+        applySubstitution(sub, type.valueType)
+      );
 
     case "ObjectType": {
       const newFields = new Map<string, Type>();
@@ -194,6 +216,12 @@ export function freeTypeVars(type: Type): Set<number> {
 
     case "ArrayType":
       return freeTypeVars(type.elementType);
+
+    case "DictType": {
+      const keyFree = freeTypeVars(type.keyType);
+      const valueFree = freeTypeVars(type.valueType);
+      return new Set([...keyFree, ...valueFree]);
+    }
 
     case "ObjectType": {
       const result = new Set<number>();
@@ -283,6 +311,11 @@ export function typesEqual(t1: Type, t2: Type): boolean {
     case "ArrayType":
       return typesEqual(t1.elementType, (t2 as ArrayType).elementType);
 
+    case "DictType": {
+      const d2 = t2 as DictType;
+      return typesEqual(t1.keyType, d2.keyType) && typesEqual(t1.valueType, d2.valueType);
+    }
+
     case "ObjectType": {
       const o2 = t2 as ObjectType;
       if (t1.fields.size !== o2.fields.size) return false;
@@ -326,6 +359,8 @@ export function typeToString(type: Type): string {
       return "unit";
     case "ArrayType":
       return `[${typeToString(type.elementType)}]`;
+    case "DictType":
+      return `[${typeToString(type.keyType)} : ${typeToString(type.valueType)}]`;
     case "ObjectType": {
       const fields = Array.from(type.fields.entries())
         .map(([key, fieldType]) => `${key}: ${typeToString(fieldType)}`)

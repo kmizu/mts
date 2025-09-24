@@ -7,6 +7,7 @@ import {
   BlockExpression,
   BooleanLiteral,
   CallExpression,
+  DictionaryExpression,
   Expression,
   FunctionExpression,
   Identifier,
@@ -36,6 +37,7 @@ export type RuntimeValue =
   | undefined
   | RuntimeValue[]
   | { [key: string]: RuntimeValue }
+  | Map<RuntimeValue, RuntimeValue>
   | RuntimeFunction;
 
 export interface RuntimeFunction {
@@ -160,6 +162,9 @@ export class Evaluator {
 
       case "ArrayExpression":
         return this.evaluateArrayExpression(expr as ArrayExpression, env);
+
+      case "DictionaryExpression":
+        return this.evaluateDictionaryExpression(expr as DictionaryExpression, env);
 
       case "ObjectExpression":
         return this.evaluateObjectExpression(expr as ObjectExpression, env);
@@ -326,6 +331,18 @@ export class Evaluator {
     return expr.elements.map((element) => this.evaluateExpression(element, env));
   }
 
+  private evaluateDictionaryExpression(expr: DictionaryExpression, env: Environment): RuntimeValue {
+    const dict = new Map<RuntimeValue, RuntimeValue>();
+
+    for (const entry of expr.entries) {
+      const key = this.evaluateExpression(entry.key, env);
+      const value = this.evaluateExpression(entry.value, env);
+      dict.set(key, value);
+    }
+
+    return dict;
+  }
+
   private evaluateObjectExpression(expr: ObjectExpression, env: Environment): RuntimeValue {
     const obj: { [key: string]: RuntimeValue } = {};
 
@@ -358,23 +375,32 @@ export class Evaluator {
   }
 
   private evaluateIndexExpression(expr: IndexExpression, env: Environment): RuntimeValue {
-    const array = this.evaluateExpression(expr.array, env);
+    const container = this.evaluateExpression(expr.array, env);
     const index = this.evaluateExpression(expr.index, env);
 
-    if (!Array.isArray(array)) {
-      throw new RuntimeError("Cannot index non-array value");
+    // Handle array indexing
+    if (Array.isArray(container)) {
+      if (typeof index !== "number") {
+        throw new RuntimeError("Array index must be a number");
+      }
+
+      const idx = index as number;
+      if (idx < 0 || idx >= container.length) {
+        throw new RuntimeError(`Array index out of bounds: ${idx}`);
+      }
+
+      return container[idx];
     }
 
-    if (typeof index !== "number") {
-      throw new RuntimeError("Array index must be a number");
+    // Handle dictionary indexing
+    if (container instanceof Map) {
+      if (!container.has(index)) {
+        return undefined; // Dictionary key not found returns undefined
+      }
+      return container.get(index);
     }
 
-    const idx = index as number;
-    if (idx < 0 || idx >= array.length) {
-      throw new RuntimeError(`Array index out of bounds: ${idx}`);
-    }
-
-    return array[idx];
+    throw new RuntimeError("Cannot index non-array, non-dictionary value");
   }
 
   private evaluateFunctionExpression(expr: FunctionExpression, env: Environment): RuntimeValue {

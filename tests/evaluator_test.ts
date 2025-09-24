@@ -129,6 +129,58 @@ Deno.test("Evaluator - array index out of bounds", () => {
   );
 });
 
+// ========== Dictionary Expressions ==========
+
+Deno.test("Evaluator - dictionary literals", () => {
+  const dict1 = evaluate('["key": "value", "num": 42]');
+  assertEquals(dict1 instanceof Map, true);
+  assertEquals((dict1 as Map<any, any>).get("key"), "value");
+  assertEquals((dict1 as Map<any, any>).get("num"), 42);
+
+  const emptyDict = evaluate("[]");
+  assertEquals(Array.isArray(emptyDict), true);
+  assertEquals((emptyDict as any[]).length, 0);
+
+  const dictWithNumbers = evaluate('[1: "one", 2: "two", 3: "three"]');
+  assertEquals(dictWithNumbers instanceof Map, true);
+  assertEquals((dictWithNumbers as Map<any, any>).get(1), "one");
+  assertEquals((dictWithNumbers as Map<any, any>).get(2), "two");
+  assertEquals((dictWithNumbers as Map<any, any>).get(3), "three");
+});
+
+Deno.test("Evaluator - dictionary access", () => {
+  assertEquals(evaluate('let dict = ["name": "Alice", "age": 30]; dict["name"]'), "Alice");
+  assertEquals(evaluate('let dict = ["name": "Alice", "age": 30]; dict["age"]'), 30);
+  assertEquals(evaluate('let nums = [1: "one", 2: "two"]; nums[1]'), "one");
+  assertEquals(evaluate('let nums = [1: "one", 2: "two"]; nums[2]'), "two");
+});
+
+Deno.test("Evaluator - dictionary access non-existent key", () => {
+  assertEquals(evaluate('let dict = ["a": 1]; dict["b"]'), undefined);
+  assertEquals(evaluate('let dict = [1: "one"]; dict[2]'), undefined);
+});
+
+Deno.test("Evaluator - nested dictionaries", () => {
+  const result = evaluate(`
+    let outer = ["inner": ["key": "value"]];
+    outer["inner"]["key"]
+  `);
+  assertEquals(result, "value");
+});
+
+Deno.test("Evaluator - mixed key types dictionary", () => {
+  const dict = evaluate('["string": 1, 42: "number", true: "boolean"]');
+  assertEquals(dict instanceof Map, true);
+  assertEquals((dict as Map<any, any>).get("string"), 1);
+  assertEquals((dict as Map<any, any>).get(42), "number");
+  assertEquals((dict as Map<any, any>).get(true), "boolean");
+});
+
+Deno.test("Evaluator - dictionary with computed keys", () => {
+  assertEquals(evaluate('let key = "dynamic"; [key: "value"][key]'), "value");
+  assertEquals(evaluate('let n = 5; [n + 1: "six"][6]'), "six");
+});
+
 // ========== Object Expressions ==========
 
 Deno.test("Evaluator - object literals", () => {
@@ -391,6 +443,6 @@ Deno.test("Evaluator - indexing non-array", () => {
   assertThrows(
     () => evaluate("let x = 42; x[0]"),
     RuntimeError,
-    "Cannot index non-array value",
+    "Cannot index non-array, non-dictionary value",
   );
 });

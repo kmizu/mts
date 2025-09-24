@@ -80,6 +80,19 @@ export type ObjectExpression = {
   loc?: Location;
 };
 
+// Dictionary entries and expressions
+export type DictionaryEntry = {
+  key: Expression;
+  value: Expression;
+  loc?: Location;
+};
+
+export type DictionaryExpression = {
+  kind: "DictionaryExpression";
+  entries: DictionaryEntry[];
+  loc?: Location;
+};
+
 export type MemberExpression = {
   kind: "MemberExpression";
   object: Expression;
@@ -98,6 +111,7 @@ export type TypeAnnotation = {
 export type TypeExpression =
   | PrimitiveTypeExpression
   | ArrayTypeExpression
+  | DictionaryTypeExpression
   | ObjectTypeExpression
   | FunctionTypeExpression
   | TypeVariable;
@@ -111,6 +125,13 @@ export type PrimitiveTypeExpression = {
 export type ArrayTypeExpression = {
   kind: "ArrayTypeExpression";
   elementType: TypeExpression;
+  loc?: Location;
+};
+
+export type DictionaryTypeExpression = {
+  kind: "DictionaryTypeExpression";
+  keyType: TypeExpression;
+  valueType: TypeExpression;
   loc?: Location;
 };
 
@@ -269,6 +290,7 @@ export type Expression =
   | ArrayExpression
   | IndexExpression
   | ObjectExpression
+  | DictionaryExpression
   | MemberExpression
   | FunctionExpression
   | CallExpression
