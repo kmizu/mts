@@ -81,7 +81,8 @@ export class REPL {
       if (ast.body.length > 0) {
         const lastExpr = ast.body[ast.body.length - 1];
         if (lastExpr.kind === "VariableDeclaration") {
-          const scheme = typeEnv.get(lastExpr.identifier.name);
+          const lastBinding = lastExpr.bindings[lastExpr.bindings.length - 1];
+          const scheme = typeEnv.get(lastBinding.identifier.name);
           if (scheme) {
             resultType = typeToString(scheme.type);
           }

@@ -3,8 +3,10 @@
 import {
   ArrayType,
   BooleanType,
+  dictType,
   FunctionType,
   NumberType,
+  objectType,
   StringType,
   Type,
   TypeScheme,
@@ -148,6 +150,441 @@ export const builtinFunctions: Map<string, BuiltinFunction> = new Map([
         return arr.length === 0;
       },
       description: "Returns true if array is empty",
+    },
+  ],
+
+  [
+    "range",
+    {
+      name: "range",
+      typeScheme: {
+        type: createFunctionType(
+          [createNumberType(), createNumberType()],
+          createArrayType(createNumberType()),
+        ),
+        typeVars: [],
+      },
+      implementation: (start: number, end: number) => {
+        if (typeof start !== "number" || typeof end !== "number") {
+          throw new Error("range() expects two numbers");
+        }
+        const step = start <= end ? 1 : -1;
+        const result: number[] = [];
+        if (start <= end) {
+          for (let value = start; value <= end; value += step) {
+            result.push(value);
+          }
+        } else {
+          for (let value = start; value >= end; value += step) {
+            result.push(value);
+          }
+        }
+        return result;
+      },
+      description: "Creates an inclusive range of numbers",
+    },
+  ],
+
+  [
+    "sum",
+    {
+      name: "sum",
+      typeScheme: {
+        type: createFunctionType([createArrayType(createNumberType())], createNumberType()),
+        typeVars: [],
+      },
+      implementation: (arr: any[]) => {
+        if (!Array.isArray(arr)) {
+          throw new Error("sum() expects an array");
+        }
+        return arr.reduce((acc: number, value: any) => {
+          if (typeof value !== "number") {
+            throw new Error("sum() expects an array of numbers");
+          }
+          return acc + value;
+        }, 0);
+      },
+      description: "Sums all numbers in an array",
+    },
+  ],
+
+  [
+    "product",
+    {
+      name: "product",
+      typeScheme: {
+        type: createFunctionType([createArrayType(createNumberType())], createNumberType()),
+        typeVars: [],
+      },
+      implementation: (arr: any[]) => {
+        if (!Array.isArray(arr)) {
+          throw new Error("product() expects an array");
+        }
+        return arr.reduce((acc: number, value: any) => {
+          if (typeof value !== "number") {
+            throw new Error("product() expects an array of numbers");
+          }
+          return acc * value;
+        }, 1);
+      },
+      description: "Calculates the product of numbers in an array",
+    },
+  ],
+
+  [
+    "flatten",
+    {
+      name: "flatten",
+      typeScheme: (() => {
+        const element = createTypeVar("flattenElem");
+        return {
+          type: createFunctionType(
+            [createArrayType(createArrayType(element))],
+            createArrayType(element),
+          ),
+          typeVars: [element],
+        };
+      })(),
+      implementation: (arr: any[]) => {
+        if (!Array.isArray(arr)) {
+          throw new Error("flatten() expects an array of arrays");
+        }
+        return arr.reduce((acc: any[], value: any) => {
+          if (!Array.isArray(value)) {
+            throw new Error("flatten() expects an array of arrays");
+          }
+          return acc.concat(value);
+        }, []);
+      },
+      description: "Flattens an array by one level",
+    },
+  ],
+
+  [
+    "unique",
+    {
+      name: "unique",
+      typeScheme: (() => {
+        const element = createTypeVar("uniqueElem");
+        return {
+          type: createFunctionType([createArrayType(element)], createArrayType(element)),
+          typeVars: [element],
+        };
+      })(),
+      implementation: (arr: any[]) => {
+        if (!Array.isArray(arr)) {
+          throw new Error("unique() expects an array");
+        }
+        const seen = new Set<any>();
+        const result: any[] = [];
+        for (const value of arr) {
+          if (!seen.has(value)) {
+            seen.add(value);
+            result.push(value);
+          }
+        }
+        return result;
+      },
+      description: "Removes duplicate elements while preserving order",
+    },
+  ],
+
+  [
+    "chunk",
+    {
+      name: "chunk",
+      typeScheme: (() => {
+        const element = createTypeVar("chunkElem");
+        return {
+          type: createFunctionType(
+            [createArrayType(element), createNumberType()],
+            createArrayType(createArrayType(element)),
+          ),
+          typeVars: [element],
+        };
+      })(),
+      implementation: (arr: any[], size: number) => {
+        if (!Array.isArray(arr)) {
+          throw new Error("chunk() expects an array");
+        }
+        if (typeof size !== "number" || size <= 0) {
+          throw new Error("chunk() expects a positive chunk size");
+        }
+        const result: any[] = [];
+        for (let i = 0; i < arr.length; i += size) {
+          result.push(arr.slice(i, i + size));
+        }
+        return result;
+      },
+      description: "Splits an array into equally sized chunks",
+    },
+  ],
+
+  [
+    "zip",
+    {
+      name: "zip",
+      typeScheme: (() => {
+        const first = createTypeVar("zipFirst");
+        const second = createTypeVar("zipSecond");
+        const fields = new Map<string, Type>([
+          ["first", first],
+          ["second", second],
+        ]);
+        return {
+          type: createFunctionType(
+            [createArrayType(first), createArrayType(second)],
+            createArrayType(objectType(fields)),
+          ),
+          typeVars: [first, second],
+        };
+      })(),
+      implementation: (left: any[], right: any[]) => {
+        if (!Array.isArray(left) || !Array.isArray(right)) {
+          throw new Error("zip() expects two arrays");
+        }
+        const length = Math.min(left.length, right.length);
+        const result: any[] = [];
+        for (let i = 0; i < length; i++) {
+          result.push({ first: left[i], second: right[i] });
+        }
+        return result;
+      },
+      description: "Combines two arrays into an array of pairs",
+    },
+  ],
+
+  // === Dictionary Functions ===
+  [
+    "dictKeys",
+    {
+      name: "dictKeys",
+      typeScheme: (() => {
+        const key = createTypeVar("dictKey");
+        const value = createTypeVar("dictValue");
+        return {
+          type: createFunctionType([dictType(key, value)], createArrayType(key)),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (dict: Map<any, any>) => {
+        if (!(dict instanceof Map)) {
+          throw new Error("dictKeys() expects a dictionary");
+        }
+        return Array.from(dict.keys());
+      },
+      description: "Returns an array of dictionary keys",
+    },
+  ],
+
+  [
+    "dictValues",
+    {
+      name: "dictValues",
+      typeScheme: (() => {
+        const key = createTypeVar("dictValKey");
+        const value = createTypeVar("dictValValue");
+        return {
+          type: createFunctionType([dictType(key, value)], createArrayType(value)),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (dict: Map<any, any>) => {
+        if (!(dict instanceof Map)) {
+          throw new Error("dictValues() expects a dictionary");
+        }
+        return Array.from(dict.values());
+      },
+      description: "Returns an array of dictionary values",
+    },
+  ],
+
+  [
+    "dictEntries",
+    {
+      name: "dictEntries",
+      typeScheme: (() => {
+        const key = createTypeVar("dictEntryKey");
+        const value = createTypeVar("dictEntryValue");
+        const entryFields = new Map<string, Type>([
+          ["key", key],
+          ["value", value],
+        ]);
+        return {
+          type: createFunctionType(
+            [dictType(key, value)],
+            createArrayType(objectType(entryFields)),
+          ),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (dict: Map<any, any>) => {
+        if (!(dict instanceof Map)) {
+          throw new Error("dictEntries() expects a dictionary");
+        }
+        return Array.from(dict.entries()).map(([key, value]) => ({ key, value }));
+      },
+      description: "Returns an array of { key, value } pairs",
+    },
+  ],
+
+  [
+    "dictFromEntries",
+    {
+      name: "dictFromEntries",
+      typeScheme: (() => {
+        const key = createTypeVar("dictFromKey");
+        const value = createTypeVar("dictFromValue");
+        const entryFields = new Map<string, Type>([
+          ["key", key],
+          ["value", value],
+        ]);
+        return {
+          type: createFunctionType(
+            [createArrayType(objectType(entryFields))],
+            dictType(key, value),
+          ),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (entries: any[]) => {
+        if (!Array.isArray(entries)) {
+          throw new Error("dictFromEntries() expects an array of entries");
+        }
+        const map = new Map<any, any>();
+        for (const entry of entries) {
+          if (!entry || typeof entry !== "object" || !("key" in entry) || !("value" in entry)) {
+            throw new Error("dictFromEntries() expects entries of the form { key, value }");
+          }
+          map.set(entry.key, entry.value);
+        }
+        return map;
+      },
+      description: "Creates a dictionary from an array of { key, value } objects",
+    },
+  ],
+
+  [
+    "dictMerge",
+    {
+      name: "dictMerge",
+      typeScheme: (() => {
+        const key = createTypeVar("dictMergeKey");
+        const value = createTypeVar("dictMergeValue");
+        return {
+          type: createFunctionType(
+            [dictType(key, value), dictType(key, value)],
+            dictType(key, value),
+          ),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (left: Map<any, any>, right: Map<any, any>) => {
+        if (!(left instanceof Map) || !(right instanceof Map)) {
+          throw new Error("dictMerge() expects two dictionaries");
+        }
+        const merged = new Map<any, any>();
+        for (const [key, value] of left.entries()) {
+          merged.set(key, value);
+        }
+        for (const [key, value] of right.entries()) {
+          merged.set(key, value);
+        }
+        return merged;
+      },
+      description: "Merges two dictionaries (right-hand values override left)",
+    },
+  ],
+
+  [
+    "dictHas",
+    {
+      name: "dictHas",
+      typeScheme: (() => {
+        const key = createTypeVar("dictHasKey");
+        const value = createTypeVar("dictHasValue");
+        return {
+          type: createFunctionType([dictType(key, value), key], createBooleanType()),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (dict: Map<any, any>, key: any) => {
+        if (!(dict instanceof Map)) {
+          throw new Error("dictHas() expects a dictionary");
+        }
+        return dict.has(key);
+      },
+      description: "Checks if a key exists in a dictionary",
+    },
+  ],
+
+  [
+    "dictSet",
+    {
+      name: "dictSet",
+      typeScheme: (() => {
+        const key = createTypeVar("dictSetKey");
+        const value = createTypeVar("dictSetValue");
+        return {
+          type: createFunctionType([dictType(key, value), key, value], dictType(key, value)),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (dict: Map<any, any>, key: any, value: any) => {
+        if (!(dict instanceof Map)) {
+          throw new Error("dictSet() expects a dictionary");
+        }
+        const result = new Map(dict);
+        result.set(key, value);
+        return result;
+      },
+      description: "Returns a new dictionary with an updated entry",
+    },
+  ],
+
+  [
+    "dictDelete",
+    {
+      name: "dictDelete",
+      typeScheme: (() => {
+        const key = createTypeVar("dictDeleteKey");
+        const value = createTypeVar("dictDeleteValue");
+        return {
+          type: createFunctionType([dictType(key, value), key], dictType(key, value)),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (dict: Map<any, any>, key: any) => {
+        if (!(dict instanceof Map)) {
+          throw new Error("dictDelete() expects a dictionary");
+        }
+        const result = new Map(dict);
+        result.delete(key);
+        return result;
+      },
+      description: "Returns a new dictionary without the specified key",
+    },
+  ],
+
+  [
+    "dictSize",
+    {
+      name: "dictSize",
+      typeScheme: (() => {
+        const key = createTypeVar("dictSizeKey");
+        const value = createTypeVar("dictSizeValue");
+        return {
+          type: createFunctionType([dictType(key, value)], createNumberType()),
+          typeVars: [key, value],
+        };
+      })(),
+      implementation: (dict: Map<any, any>) => {
+        if (!(dict instanceof Map)) {
+          throw new Error("dictSize() expects a dictionary");
+        }
+        return dict.size;
+      },
+      description: "Returns the number of entries in a dictionary",
     },
   ],
 

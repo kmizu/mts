@@ -12,6 +12,10 @@ export type TokenType =
   | "UNDEFINED"
   // Keywords
   | "LET"
+  | "AND"
+  | "IMPORT"
+  | "FROM"
+  | "AS"
   | "IF"
   | "ELSE"
   | "MATCH"
@@ -290,6 +294,14 @@ export class Lexer {
     switch (text) {
       case "let":
         return "LET";
+      case "and":
+        return "AND";
+      case "import":
+        return "IMPORT";
+      case "from":
+        return "FROM";
+      case "as":
+        return "AS";
       case "if":
         return "IF";
       case "else":

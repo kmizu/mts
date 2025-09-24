@@ -76,6 +76,65 @@ Deno.test("Builtins - empty function", () => {
   assertThrows(() => emptyFunc.implementation("not an array"));
 });
 
+Deno.test("Builtins - range function", () => {
+  const rangeFunc = getBuiltin("range")!;
+
+  assertEquals(rangeFunc.implementation(1, 3), [1, 2, 3]);
+  assertEquals(rangeFunc.implementation(3, 1), [3, 2, 1]);
+  assertEquals(rangeFunc.implementation(0, 0), [0]);
+
+  assertThrows(() => rangeFunc.implementation("a", 3));
+});
+
+Deno.test("Builtins - sum and product functions", () => {
+  const sumFunc = getBuiltin("sum")!;
+  const productFunc = getBuiltin("product")!;
+
+  assertEquals(sumFunc.implementation([1, 2, 3, 4]), 10);
+  assertEquals(productFunc.implementation([1, 2, 3, 4]), 24);
+
+  assertThrows(() => sumFunc.implementation([1, "two"]));
+  assertThrows(() => productFunc.implementation([1, "two"]));
+});
+
+Deno.test("Builtins - flatten function", () => {
+  const flattenFunc = getBuiltin("flatten")!;
+
+  assertEquals(flattenFunc.implementation([[1, 2], [3, 4]]), [1, 2, 3, 4]);
+  assertEquals(flattenFunc.implementation([[], [1], []]), [1]);
+
+  assertThrows(() => flattenFunc.implementation([1, 2]));
+});
+
+Deno.test("Builtins - unique function", () => {
+  const uniqueFunc = getBuiltin("unique")!;
+
+  assertEquals(uniqueFunc.implementation([1, 2, 2, 3, 1]), [1, 2, 3]);
+  assertEquals(uniqueFunc.implementation(["a", "a", "b"]), ["a", "b"]);
+
+  assertThrows(() => uniqueFunc.implementation("not an array"));
+});
+
+Deno.test("Builtins - chunk function", () => {
+  const chunkFunc = getBuiltin("chunk")!;
+
+  assertEquals(chunkFunc.implementation([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
+  assertEquals(chunkFunc.implementation([1, 2, 3], 5), [[1, 2, 3]]);
+
+  assertThrows(() => chunkFunc.implementation([1, 2], 0));
+});
+
+Deno.test("Builtins - zip function", () => {
+  const zipFunc = getBuiltin("zip")!;
+
+  assertEquals(zipFunc.implementation([1, 2], ["a", "b", "c"]), [
+    { first: 1, second: "a" },
+    { first: 2, second: "b" },
+  ]);
+
+  assertThrows(() => zipFunc.implementation([1, 2], "not an array"));
+});
+
 // ========== String Functions Tests ==========
 
 Deno.test("Builtins - concat function", () => {
@@ -191,6 +250,54 @@ Deno.test("Builtins - type schemes are correct", () => {
   const printFunc = getBuiltin("print")!;
   assertEquals(printFunc.typeScheme.type.kind, "FunctionType");
   assertEquals(printFunc.typeScheme.typeVars.length, 1);
+});
+
+// ========== Dictionary Function Tests ==========
+
+Deno.test("Builtins - dict basic operations", () => {
+  const dict = new Map<any, any>([["a", 1], ["b", 2]]);
+
+  const keysFunc = getBuiltin("dictKeys")!;
+  const valuesFunc = getBuiltin("dictValues")!;
+  const sizeFunc = getBuiltin("dictSize")!;
+  const hasFunc = getBuiltin("dictHas")!;
+
+  assertEquals(keysFunc.implementation(dict), ["a", "b"]);
+  assertEquals(valuesFunc.implementation(dict), [1, 2]);
+  assertEquals(sizeFunc.implementation(dict), 2);
+  assertEquals(hasFunc.implementation(dict, "a"), true);
+  assertEquals(hasFunc.implementation(dict, "z"), false);
+});
+
+Deno.test("Builtins - dictEntries and dictFromEntries", () => {
+  const dict = new Map<any, any>([[1, "one"], [2, "two"]]);
+  const entriesFunc = getBuiltin("dictEntries")!;
+  const fromEntriesFunc = getBuiltin("dictFromEntries")!;
+
+  const entries = entriesFunc.implementation(dict);
+  assertEquals(entries, [
+    { key: 1, value: "one" },
+    { key: 2, value: "two" },
+  ]);
+
+  const rebuilt = fromEntriesFunc.implementation(entries);
+  assertEquals(Array.from(rebuilt.entries()), Array.from(dict.entries()));
+});
+
+Deno.test("Builtins - dictSet, dictDelete, and dictMerge", () => {
+  const dictSetFunc = getBuiltin("dictSet")!;
+  const dictDeleteFunc = getBuiltin("dictDelete")!;
+  const dictMergeFunc = getBuiltin("dictMerge")!;
+
+  const base = new Map<any, any>([["x", 1]]);
+  const withY = dictSetFunc.implementation(base, "y", 2);
+  assertEquals(Array.from(withY.entries()), [["x", 1], ["y", 2]]);
+
+  const withoutX = dictDeleteFunc.implementation(withY, "x");
+  assertEquals(Array.from(withoutX.entries()), [["y", 2]]);
+
+  const merged = dictMergeFunc.implementation(withoutX, new Map([["z", 3]]));
+  assertEquals(Array.from(merged.entries()), [["y", 2], ["z", 3]]);
 });
 
 // ========== I/O Functions Tests (Mock Tests) ==========

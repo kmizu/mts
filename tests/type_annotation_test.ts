@@ -119,7 +119,7 @@ Deno.test("Type Annotation - in variable declaration", () => {
   const ast = parseTypeAnnotation("let add = (x: number, y: number) => x + y");
 
   assertEquals(ast.body[0].kind, "VariableDeclaration");
-  const func = (ast.body[0] as any).initializer as any;
+  const func = (ast.body[0] as any).bindings[0].initializer as any;
   assertEquals(func.kind, "FunctionExpression");
   assertEquals(func.parameters[0].typeAnnotation.type.primitive, "number");
 });

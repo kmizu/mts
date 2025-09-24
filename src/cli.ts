@@ -2,9 +2,10 @@
 
 import { Parser } from "./parser.ts";
 import { TypeInferrer } from "./infer.ts";
-import { Evaluator } from "./evaluator.ts";
 import { REPL } from "./repl.ts";
 import { applySubstitution, typeToString } from "./types.ts";
+import { ModuleLoader } from "./module_loader.ts";
+import { Expression } from "./ast.ts";
 
 function printUsage(): void {
   console.log("MTS - A functional programming language with HM type inference");
@@ -47,34 +48,13 @@ function formatValue(value: any): string {
 
 async function runFile(filepath: string): Promise<void> {
   try {
-    // Check if file exists
-    try {
-      await Deno.stat(filepath);
-    } catch (error) {
-      console.error(`Error: File '${filepath}' not found`);
-      Deno.exit(1);
-    }
-
-    // Read file
-    const source = await Deno.readTextFile(filepath);
-
-    // Parse
-    const parser = new Parser(source);
-    const ast = parser.parse();
-
-    // Type inference
-    const inferrer = new TypeInferrer();
-    const typeEnv = inferrer.inferAndSolve(ast);
+    const loader = new ModuleLoader();
+    const record = await loader.loadModule(filepath);
 
     console.log("✅ Type checking passed");
 
-    // Evaluate
-    const evaluator = new Evaluator();
-    const result = evaluator.evaluate(ast);
-
-    // Print result if it's not null/undefined
-    if (result !== null && result !== undefined) {
-      console.log("Result:", formatValue(result));
+    if (record.lastValue !== null && record.lastValue !== undefined) {
+      console.log("Result:", formatValue(record.lastValue));
     }
   } catch (error) {
     console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -82,52 +62,35 @@ async function runFile(filepath: string): Promise<void> {
   }
 }
 
-function evaluateCode(code: string): void {
+async function evaluateCode(code: string): Promise<void> {
   try {
-    // Parse
-    const parser = new Parser(code);
-    const ast = parser.parse();
+    const loader = new ModuleLoader();
+    const cwd = await Deno.realPath(".");
+    const virtualPath = `${cwd}/__inline__/${crypto.randomUUID()}.mts`;
+    const record = await loader.loadModuleFromSource(virtualPath, code);
+    const program = record.program;
 
-    // Type inference
-    const inferrer = new TypeInferrer();
-    const typeEnv = inferrer.inferAndSolve(ast);
-
-    // Get result type
+    // Determine result type
     let resultType = "Unit";
-    if (ast.body.length > 0) {
-      const lastExpr = ast.body[ast.body.length - 1];
+    if (program.body.length > 0) {
+      const lastExpr = program.body[program.body.length - 1] as Expression;
       if (lastExpr.kind === "VariableDeclaration") {
-        const scheme = typeEnv.get(lastExpr.identifier.name);
+        const lastBinding = lastExpr.bindings[lastExpr.bindings.length - 1];
+        const scheme = record.typeEnv.get(lastBinding.identifier.name);
         if (scheme) {
           resultType = typeToString(scheme.type);
         }
       } else {
-        // Create fresh inferrer to avoid constraint conflicts
         const freshInferrer = new TypeInferrer();
-        const freshEnv = freshInferrer.createInitialEnv();
-
-        // Add all variable declarations to the fresh environment
-        for (const stmt of ast.body) {
-          if (stmt.kind === "VariableDeclaration") {
-            const scheme = typeEnv.get(stmt.identifier.name);
-            if (scheme) {
-              freshEnv.set(stmt.identifier.name, scheme);
-            }
-          }
-        }
-
-        const exprType = freshInferrer.inferExpression(lastExpr, freshEnv);
-        resultType = typeToString(exprType);
+        const envCopy = new Map(record.typeEnv);
+        const exprType = freshInferrer.inferExpression(lastExpr, envCopy);
+        const substitution = freshInferrer.solveConstraints();
+        resultType = typeToString(applySubstitution(substitution, exprType));
       }
     }
 
-    // Evaluate
-    const evaluator = new Evaluator();
-    const result = evaluator.evaluate(ast);
-
-    // Print result
-    if (result !== null && result !== undefined) {
-      console.log(`${formatValue(result)} : ${resultType}`);
+    if (record.lastValue !== null && record.lastValue !== undefined) {
+      console.log(`${formatValue(record.lastValue)} : ${resultType}`);
     } else {
       console.log(`() : ${resultType}`);
     }
@@ -190,7 +153,7 @@ async function main(): Promise<void> {
       printUsage();
       Deno.exit(1);
     }
-    evaluateCode(args[1]);
+    await evaluateCode(args[1]);
     return;
   }
 

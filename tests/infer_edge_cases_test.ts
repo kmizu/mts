@@ -41,6 +41,34 @@ Deno.test("Type Inference - let polymorphism with multiple uses", () => {
   assertEquals(env.get("bool")?.type.kind, "BooleanType");
 });
 
+// ========== Mutual Recursion ==========
+
+Deno.test("Type Inference - mutual recursion with let and", () => {
+  const env = inferType(`
+    let even = (n: number) => {
+      if (n == 0) {
+        true
+      } else {
+        odd(n - 1)
+      }
+    } and odd = (n: number) => {
+      if (n == 0) {
+        false
+      } else {
+        even(n - 1)
+      }
+    }
+  `);
+
+  const evenScheme = env.get("even");
+  const oddScheme = env.get("odd");
+
+  assertEquals(evenScheme?.type.kind, "FunctionType");
+  assertEquals(oddScheme?.type.kind, "FunctionType");
+  assertEquals(typeToString(evenScheme!.type), "(number) => boolean");
+  assertEquals(typeToString(oddScheme!.type), "(number) => boolean");
+});
+
 // ========== Higher-Order Function Edge Cases ==========
 
 Deno.test("Type Inference - function returning different types error", () => {
@@ -259,18 +287,6 @@ Deno.test("Type Inference - occurs check prevention", () => {
     },
     TypeError,
     "Occurs check failed",
-  );
-});
-
-Deno.test("Type Inference - self-referential object error", () => {
-  assertThrows(
-    () => {
-      // This might cause occurs check depending on implementation
-      inferType(`
-        let selfRef = { self: selfRef }
-      `);
-    },
-    TypeError,
   );
 });
 

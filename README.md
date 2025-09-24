@@ -32,8 +32,10 @@ Claude Codeオンリーで実装したのが特徴です。
 
 ### 🔧 組み込み関数
 
-- **配列操作**: `length`, `head`, `tail`, `push`, `empty`
-- **辞書操作**: 任意のキー・値型をサポートする連想配列
+- **配列操作**: `length`, `head`, `tail`, `push`, `empty`, `range`, `sum`, `product`, `flatten`,
+  `unique`, `chunk`, `zip`
+- **辞書操作**: `dictKeys`, `dictValues`, `dictEntries`, `dictFromEntries`, `dictMerge`, `dictHas`,
+  `dictSet`, `dictDelete`, `dictSize`
 - **文字列操作**: `concat`, `substring`, `strlen`
 - **数学関数**: `sqrt`, `abs`, `floor`, `ceil`
 - **I/O関数**: `print`, `println`, `readText`, `writeText`
@@ -146,6 +148,46 @@ let userProfiles = [
 let aliceProfile = userProfiles["alice"];
 let aliceName = aliceProfile.name;
 ```
+
+### モジュール
+
+```javascript
+// math.mts
+let double = (n) => n * 2;
+let triple = (n) => n * 3;
+
+// main.mts
+import { double, triple as timesThree } from "./math.mts";
+
+let summary = {
+  twice: double(21),
+  thrice: timesThree(14),
+};
+summary;
+```
+
+モジュールは相対パス（`./` や `../`）で指定します。`.mts` 拡張子は省略可能です。
+
+### 相互再帰
+
+```javascript
+let even = (n) =>
+  if (n == 0) {
+    true
+  } else {
+    odd(n - 1)
+  }
+and odd = (n) =>
+  if (n == 0) {
+    false
+  } else {
+    even(n - 1)
+  };
+
+even(10)
+```
+
+`let ... and`構文はトップレベルでもブロック内でも使用でき、複数の定義が互いを参照するケースに対応します。
 
 ### 制御フロー
 
@@ -443,16 +485,15 @@ deno lint                   # Lintチェック
 
 ## 🚧 現在の制限
 
-- **相互再帰** - 現在は単純再帰のみサポート
-- **モジュールシステム** - import/exportなし
-- **標準ライブラリ** - 限定的な組み込み関数
+- **モジュールシステム** - 相対パスのみ対応（循環依存は未対応）
+- **標準ライブラリ** - まだ小規模（I/Oや外部リソースは未対応）
 - **パフォーマンス** - インタープリターベース（コンパイルなし）
 
 ## 🔮 将来の拡張
 
-- [ ] 相互再帰のための`let ... and`構文
-- [ ] インポートを持つモジュールシステム
-- [ ] より多くの組み込み関数とデータ構造
+- [x] 相互再帰のための`let ... and`構文
+- [x] インポートを持つモジュールシステム
+- [x] より多くの組み込み関数とデータ構造
 - [ ] JavaScriptへのコンパイル
 - [ ] LSPでのIDE統合
 

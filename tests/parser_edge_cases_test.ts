@@ -32,8 +32,8 @@ Deno.test("Parser - no whitespace", () => {
   const ast = parser.parse();
 
   assertEquals(ast.body.length, 3);
-  assertEquals((ast.body[0] as any).identifier.name, "x");
-  assertEquals((ast.body[1] as any).identifier.name, "y");
+  assertEquals((ast.body[0] as any).bindings[0].identifier.name, "x");
+  assertEquals((ast.body[1] as any).bindings[0].identifier.name, "y");
 });
 
 Deno.test("Parser - single quotes not supported", () => {
@@ -89,7 +89,7 @@ Deno.test("Parser - single character identifiers", () => {
   const ast = parser.parse();
 
   assertEquals(ast.body[0].kind, "VariableDeclaration");
-  const expr = (ast.body[0] as any).initializer;
+  const expr = (ast.body[0] as any).bindings[0].initializer;
   assertEquals(expr.kind, "BinaryExpression");
 });
 
@@ -300,8 +300,8 @@ Deno.test("Parser - fibonacci function", () => {
 
   assertEquals(ast.body[0].kind, "VariableDeclaration");
   const fib = ast.body[0] as any;
-  assertEquals(fib.identifier.name, "fibonacci");
-  assertEquals(fib.initializer.kind, "FunctionExpression");
+  assertEquals(fib.bindings[0].identifier.name, "fibonacci");
+  assertEquals(fib.bindings[0].initializer.kind, "FunctionExpression");
 });
 
 Deno.test("Parser - quicksort function", () => {
@@ -324,8 +324,8 @@ Deno.test("Parser - quicksort function", () => {
 
   assertEquals(ast.body[0].kind, "VariableDeclaration");
   const qs = ast.body[0] as any;
-  assertEquals(qs.identifier.name, "quicksort");
-  assertEquals(qs.initializer.kind, "FunctionExpression");
+  assertEquals(qs.bindings[0].identifier.name, "quicksort");
+  assertEquals(qs.bindings[0].initializer.kind, "FunctionExpression");
 });
 
 Deno.test("Parser - data processing pipeline", () => {
@@ -345,6 +345,6 @@ Deno.test("Parser - data processing pipeline", () => {
 
   assertEquals(ast.body[0].kind, "VariableDeclaration");
   const result = ast.body[0] as any;
-  assertEquals(result.initializer.kind, "CallExpression");
-  assertEquals(result.initializer.callee.name, "pipe");
+  assertEquals(result.bindings[0].initializer.kind, "CallExpression");
+  assertEquals(result.bindings[0].initializer.callee.name, "pipe");
 });

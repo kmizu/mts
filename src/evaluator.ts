@@ -24,9 +24,14 @@ import {
   StringLiteral,
   UnaryExpression,
   UndefinedLiteral,
+  VariableBinding,
   VariableDeclaration,
 } from "./ast.ts";
 import { BuiltinFunction, builtinFunctions } from "./builtins.ts";
+
+const UNINITIALIZED = Symbol("uninitialized");
+
+type RuntimeSlot = RuntimeValue | typeof UNINITIALIZED;
 
 // Runtime values
 export type RuntimeValue =
@@ -49,21 +54,24 @@ export interface RuntimeFunction {
 
 // Runtime environment for variable bindings
 export class Environment {
-  private bindings: Map<string, RuntimeValue> = new Map();
+  private bindings: Map<string, RuntimeSlot> = new Map();
   private parent?: Environment;
 
   constructor(parent?: Environment) {
     this.parent = parent;
   }
 
-  define(name: string, value: RuntimeValue): void {
+  define(name: string, value: RuntimeSlot): void {
     this.bindings.set(name, value);
   }
 
   get(name: string): RuntimeValue {
-    const value = this.bindings.get(name);
-    if (value !== undefined) {
-      return value;
+    if (this.bindings.has(name)) {
+      const value = this.bindings.get(name)!;
+      if (value === UNINITIALIZED) {
+        throw new Error(`Variable '${name}' referenced before initialization`);
+      }
+      return value as RuntimeValue;
     }
     if (this.parent) {
       return this.parent.get(name);
@@ -131,6 +139,14 @@ export class Evaluator {
     return result;
   }
 
+  setGlobal(name: string, value: RuntimeValue): void {
+    this.globalEnv.define(name, value);
+  }
+
+  getGlobalValue(name: string): RuntimeValue {
+    return this.globalEnv.get(name);
+  }
+
   private evaluateExpression(expr: Expression, env: Environment): RuntimeValue {
     switch (expr.kind) {
       case "NumberLiteral":
@@ -196,6 +212,9 @@ export class Evaluator {
     try {
       return env.get(expr.name);
     } catch (error) {
+      if (error instanceof Error) {
+        throw new RuntimeError(error.message);
+      }
       throw new RuntimeError(`Undefined variable: ${expr.name}`);
     }
   }
@@ -471,13 +490,24 @@ export class Evaluator {
   }
 
   private evaluateVariableDeclaration(decl: VariableDeclaration, env: Environment): void {
-    const value = this.evaluateExpression(decl.initializer, env);
-    env.define(decl.identifier.name, value);
+    this.initializeBindingGroup(decl.bindings, env);
   }
 
   private evaluateLetStatement(stmt: LetStatement, env: Environment): void {
-    const value = this.evaluateExpression(stmt.initializer, env);
-    env.define(stmt.identifier.name, value);
+    this.initializeBindingGroup(stmt.bindings, env);
+  }
+
+  private initializeBindingGroup(bindings: VariableBinding[], env: Environment): void {
+    // Predeclare all bindings to support mutual recursion
+    for (const binding of bindings) {
+      env.define(binding.identifier.name, UNINITIALIZED);
+    }
+
+    // Evaluate each initializer and assign the resulting value
+    for (const binding of bindings) {
+      const value = this.evaluateExpression(binding.initializer, env);
+      env.define(binding.identifier.name, value);
+    }
   }
 
   // Helper methods

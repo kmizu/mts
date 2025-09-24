@@ -17,6 +17,8 @@ import {
   Identifier,
   IdentifierPattern,
   IfExpression,
+  ImportDeclaration,
+  ImportSpecifier,
   IndexExpression,
   LetStatement,
   LiteralPattern,
@@ -35,12 +37,14 @@ import {
   Program,
   Statement,
   StringLiteral,
+  TopLevelStatement,
   TypeAnnotation,
   TypeExpression,
   TypeVariable,
   UnaryExpression,
   UnaryOperator,
   UndefinedLiteral,
+  VariableBinding,
   VariableDeclaration,
   WildcardPattern,
 } from "./ast.ts";
@@ -62,20 +66,61 @@ export class Parser {
   }
 
   parse(): Program {
-    const body: Expression[] = [];
+    const body: TopLevelStatement[] = [];
 
     while (!this.isAtEnd()) {
-      body.push(this.parseExpression());
+      if (this.check("IMPORT")) {
+        body.push(this.parseImportDeclaration());
+      } else {
+        body.push(this.parseExpression());
+      }
 
       // Optional semicolon
-      if (this.match("SEMICOLON")) {
-        // consume it
-      }
+      this.match("SEMICOLON");
     }
 
     return {
       kind: "Program",
       body,
+    };
+  }
+
+  private parseImportDeclaration(): ImportDeclaration {
+    const importToken = this.consume("IMPORT", "Expected 'import'");
+
+    this.consume("LEFT_BRACE", "Expected '{' after 'import'");
+
+    const specifiers: ImportSpecifier[] = [];
+
+    if (!this.check("RIGHT_BRACE")) {
+      do {
+        const imported = this.consumeIdentifier();
+        let local = imported.name;
+
+        if (this.match("AS")) {
+          const alias = this.consumeIdentifier();
+          local = alias.name;
+        }
+
+        specifiers.push({
+          imported: imported.name,
+          local,
+          loc: imported.loc,
+        });
+      } while (this.match("COMMA"));
+    }
+
+    this.consume("RIGHT_BRACE", "Expected '}' after import specifiers");
+    this.consume("FROM", "Expected 'from' in import statement");
+
+    const sourceToken = this.consume("STRING", "Expected module path in import statement");
+    const source = sourceToken.value as string;
+
+    return {
+      kind: "ImportDeclaration",
+      specifiers,
+      source,
+      loc: importToken.location,
     };
   }
 
@@ -85,29 +130,48 @@ export class Parser {
 
   private parseLetExpression(): Expression {
     if (this.match("LET")) {
-      const identifier = this.consumeIdentifier();
-
-      // Optional type annotation
-      let typeAnnotation = undefined;
-      if (this.match("COLON")) {
-        typeAnnotation = {
-          kind: "TypeAnnotation",
-          type: this.parseTypeExpression(),
-        };
-      }
-
-      this.consume("EQUAL", "Expected '=' after identifier in let expression");
-      const initializer = this.parseExpression();
+      const bindings = this.parseLetBindingSequence("let expression");
 
       return {
         kind: "VariableDeclaration",
-        identifier,
-        typeAnnotation,
-        initializer,
+        bindings,
       } as VariableDeclaration;
     }
 
     return this.parseLogicalOr();
+  }
+
+  private parseLetBindingSequence(context: string): VariableBinding[] {
+    const bindings: VariableBinding[] = [];
+    bindings.push(this.parseLetBinding(context));
+
+    while (this.match("AND")) {
+      bindings.push(this.parseLetBinding(context));
+    }
+
+    return bindings;
+  }
+
+  private parseLetBinding(context: string): VariableBinding {
+    const identifier = this.consumeIdentifier();
+
+    let typeAnnotation: TypeAnnotation | undefined;
+    if (this.match("COLON")) {
+      typeAnnotation = {
+        kind: "TypeAnnotation",
+        type: this.parseTypeExpression(),
+      };
+    }
+
+    this.consume("EQUAL", `Expected '=' after identifier in ${context}`);
+    const initializer = this.parseExpression();
+
+    return {
+      identifier,
+      initializer,
+      typeAnnotation,
+      loc: identifier.loc,
+    };
   }
 
   private parseLogicalOr(): Expression {
@@ -662,14 +726,11 @@ export class Parser {
 
     while (!this.check("RIGHT_BRACE") && !this.isAtEnd()) {
       if (this.match("LET")) {
-        const identifier = this.consumeIdentifier();
-        this.consume("EQUAL", "Expected '=' in let statement");
-        const initializer = this.parseExpression();
+        const bindings = this.parseLetBindingSequence("let statement");
 
         statements.push({
           kind: "LetStatement",
-          identifier,
-          initializer,
+          bindings,
         } as LetStatement);
 
         // Optional semicolon

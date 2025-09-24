@@ -51,6 +51,14 @@ Deno.test("Evaluator - undefined variable error", () => {
   );
 });
 
+Deno.test("Evaluator - uninitialized recursive binding error", () => {
+  assertThrows(
+    () => evaluate("let selfRef = { self: selfRef }; selfRef"),
+    RuntimeError,
+    "Variable 'selfRef' referenced before initialization",
+  );
+});
+
 // ========== Binary Expressions ==========
 
 Deno.test("Evaluator - arithmetic operations", () => {
@@ -216,6 +224,26 @@ Deno.test("Evaluator - function with closure", () => {
     add5(3)
   `),
     8,
+  );
+});
+
+Deno.test("Evaluator - mutual recursion with let and", () => {
+  assertEquals(
+    evaluate(`
+    let even = (n) => if (n == 0) true else odd(n - 1)
+      and odd = (n) => if (n == 0) false else even(n - 1);
+    even(4)
+  `),
+    true,
+  );
+
+  assertEquals(
+    evaluate(`
+    let even = (n) => if (n == 0) true else odd(n - 1)
+      and odd = (n) => if (n == 0) false else even(n - 1);
+    odd(7)
+  `),
+    true,
   );
 });
 

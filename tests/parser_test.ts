@@ -70,9 +70,10 @@ Deno.test("Parser - let expression", () => {
 
   assertEquals(ast.body[0].kind, "VariableDeclaration");
   const decl = ast.body[0] as any;
-  assertEquals(decl.identifier.name, "x");
-  assertEquals(decl.initializer.kind, "NumberLiteral");
-  assertEquals(decl.initializer.value, 42);
+  assertEquals(decl.bindings.length, 1);
+  assertEquals(decl.bindings[0].identifier.name, "x");
+  assertEquals(decl.bindings[0].initializer.kind, "NumberLiteral");
+  assertEquals(decl.bindings[0].initializer.value, 42);
 });
 
 Deno.test("Parser - function expression", () => {
@@ -252,12 +253,14 @@ Deno.test("Parser - complex expression", () => {
   assertEquals(ast.body[1].kind, "VariableDeclaration");
 
   const add = ast.body[0] as any;
-  assertEquals(add.identifier.name, "add");
-  assertEquals(add.initializer.kind, "FunctionExpression");
+  assertEquals(add.bindings.length, 1);
+  assertEquals(add.bindings[0].identifier.name, "add");
+  assertEquals(add.bindings[0].initializer.kind, "FunctionExpression");
 
   const result = ast.body[1] as any;
-  assertEquals(result.identifier.name, "result");
-  assertEquals(result.initializer.kind, "CallExpression");
+  assertEquals(result.bindings.length, 1);
+  assertEquals(result.bindings[0].identifier.name, "result");
+  assertEquals(result.bindings[0].initializer.kind, "CallExpression");
 });
 
 Deno.test("Parser - logical operators", () => {

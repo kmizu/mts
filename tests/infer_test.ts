@@ -3,6 +3,7 @@
 import { TypeError, TypeInferrer } from "../src/infer.ts";
 import { Parser } from "../src/parser.ts";
 import { typeToString } from "../src/types.ts";
+import { Expression, Program } from "../src/ast.ts";
 import { assertEquals, assertThrows } from "https://deno.land/std@0.208.0/assert/mod.ts";
 
 function inferType(source: string) {
@@ -17,7 +18,11 @@ function inferExpressionType(source: string) {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = inferrer.createInitialEnv();
-  return inferrer.inferExpression(ast.body[0], env);
+  return inferrer.inferExpression(firstExpression(ast), env);
+}
+
+function firstExpression(program: Program): Expression {
+  return program.body[0] as Expression;
 }
 
 // ========== Literal Type Inference ==========
@@ -31,7 +36,7 @@ Deno.test("Type Inference - number literal", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env2 = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env2);
+  const type = inferrer.inferExpression(firstExpression(ast), env2);
   assertEquals(type.kind, "NumberType");
 });
 
@@ -40,7 +45,7 @@ Deno.test("Type Inference - string literal", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "StringType");
 });
 
@@ -49,7 +54,7 @@ Deno.test("Type Inference - boolean literal", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "BooleanType");
 });
 
@@ -58,7 +63,7 @@ Deno.test("Type Inference - null literal", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "NullType");
 });
 
@@ -67,7 +72,7 @@ Deno.test("Type Inference - undefined literal", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "UndefinedType");
 });
 
@@ -173,7 +178,7 @@ Deno.test("Type Inference - arithmetic operations", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "NumberType");
 });
 
@@ -182,7 +187,7 @@ Deno.test("Type Inference - comparison operations", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "BooleanType");
 });
 
@@ -191,7 +196,7 @@ Deno.test("Type Inference - logical operations", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "BooleanType");
 });
 
@@ -202,7 +207,7 @@ Deno.test("Type Inference - if expression with else", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "StringType");
 });
 
@@ -211,7 +216,7 @@ Deno.test("Type Inference - if expression without else", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "UnitType");
 });
 
@@ -226,7 +231,7 @@ Deno.test("Type Inference - block expression", () => {
   const ast = parser.parse();
   const inferrer = new TypeInferrer();
   const env = new Map();
-  const type = inferrer.inferExpression(ast.body[0], env);
+  const type = inferrer.inferExpression(firstExpression(ast), env);
   assertEquals(type.kind, "NumberType");
 });
 
@@ -287,7 +292,7 @@ Deno.test("Type Inference - undefined variable error", () => {
       const ast = parser.parse();
       const inferrer = new TypeInferrer();
       const env = new Map();
-      inferrer.inferExpression(ast.body[0], env);
+      inferrer.inferExpression(firstExpression(ast), env);
     },
     TypeError,
     "Undefined variable: unknownVar",

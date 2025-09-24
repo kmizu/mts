@@ -46,10 +46,29 @@ export type Identifier = {
   loc?: Location;
 };
 
-export type VariableDeclaration = {
-  kind: "VariableDeclaration";
+export type VariableBinding = {
   identifier: Identifier;
   initializer: Expression;
+  typeAnnotation?: TypeAnnotation;
+  loc?: Location;
+};
+
+export type VariableDeclaration = {
+  kind: "VariableDeclaration";
+  bindings: VariableBinding[];
+  loc?: Location;
+};
+
+export type ImportSpecifier = {
+  imported: string;
+  local: string;
+  loc?: Location;
+};
+
+export type ImportDeclaration = {
+  kind: "ImportDeclaration";
+  specifiers: ImportSpecifier[];
+  source: string;
   loc?: Location;
 };
 
@@ -266,8 +285,7 @@ export type BlockExpression = {
 // Statements (used within blocks)
 export type LetStatement = {
   kind: "LetStatement";
-  identifier: Identifier;
-  initializer: Expression;
+  bindings: VariableBinding[];
   loc?: Location;
 };
 
@@ -302,9 +320,11 @@ export type Expression =
   | VariableDeclaration;
 
 // Program (top-level)
+export type TopLevelStatement = Expression | ImportDeclaration;
+
 export type Program = {
   kind: "Program";
-  body: Expression[];
+  body: TopLevelStatement[];
   loc?: Location;
 };
 
@@ -315,4 +335,5 @@ export type ASTNode =
   | Statement
   | Pattern
   | ObjectProperty
-  | MatchCase;
+  | MatchCase
+  | ImportDeclaration;

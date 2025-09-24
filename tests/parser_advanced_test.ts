@@ -228,7 +228,7 @@ Deno.test("Parser - nested blocks", () => {
   assertEquals(outer.statements.length, 1);
   assertEquals(outer.statements[0].kind, "LetStatement");
 
-  const innerBlock = outer.statements[0].initializer;
+  const innerBlock = outer.statements[0].bindings[0].initializer;
   assertEquals(innerBlock.kind, "BlockExpression");
   assertEquals(innerBlock.statements.length, 1);
   assertEquals(innerBlock.expression.kind, "BinaryExpression");
@@ -333,12 +333,14 @@ Deno.test("Parser - let chain in single expression", () => {
 
   assertEquals(ast.body[0].kind, "VariableDeclaration");
   const outer = ast.body[0] as any;
-  assertEquals(outer.identifier.name, "x");
-  assertEquals(outer.initializer.kind, "VariableDeclaration");
+  const outerBinding = outer.bindings[0];
+  assertEquals(outerBinding.identifier.name, "x");
+  assertEquals(outerBinding.initializer.kind, "VariableDeclaration");
 
-  const inner = outer.initializer;
-  assertEquals(inner.identifier.name, "y");
-  assertEquals(inner.initializer.value, 10);
+  const inner = outerBinding.initializer;
+  const innerBinding = inner.bindings[0];
+  assertEquals(innerBinding.identifier.name, "y");
+  assertEquals(innerBinding.initializer.value, 10);
 });
 
 Deno.test("Parser - function as object value", () => {
@@ -389,12 +391,12 @@ Deno.test("Parser - complex real-world expression", () => {
   assertEquals(ast.body[1].kind, "VariableDeclaration");
 
   const users = ast.body[0] as any;
-  assertEquals(users.identifier.name, "users");
-  assertEquals(users.initializer.kind, "ArrayExpression");
+  assertEquals(users.bindings[0].identifier.name, "users");
+  assertEquals(users.bindings[0].initializer.kind, "ArrayExpression");
 
   const result = ast.body[1] as any;
-  assertEquals(result.identifier.name, "result");
-  assertEquals(result.initializer.kind, "CallExpression");
+  assertEquals(result.bindings[0].identifier.name, "result");
+  assertEquals(result.bindings[0].initializer.kind, "CallExpression");
 });
 
 // ========== Error Cases ==========

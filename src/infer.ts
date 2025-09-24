@@ -56,6 +56,7 @@ import {
   TypeExpression,
   UnaryExpression,
   UndefinedLiteral,
+  VariableBinding,
   VariableDeclaration,
 } from "./ast.ts";
 
@@ -81,10 +82,15 @@ export class TypeInferrer {
   constructor() {}
 
   // Main inference entry point
-  infer(program: Program): TypeEnv {
-    const env = this.createInitialEnv();
+  infer(program: Program, envOverride?: TypeEnv): TypeEnv {
+    const env: TypeEnv = envOverride ? new Map(envOverride) : this.createInitialEnv();
 
-    for (const expr of program.body) {
+    for (const node of program.body) {
+      if ((node as any).kind === "ImportDeclaration") {
+        continue;
+      }
+
+      const expr = node as Expression;
       const type = this.inferExpression(expr, env);
 
       // Solve constraints after each expression
@@ -95,10 +101,12 @@ export class TypeInferrer {
 
       // Handle let expressions at top level
       if (expr.kind === "VariableDeclaration") {
-        const scheme = env.get(expr.identifier.name);
-        if (scheme) {
-          const solvedType = applySubstitution(substitution, scheme.type);
-          env.set(expr.identifier.name, { ...scheme, type: solvedType });
+        for (const binding of expr.bindings) {
+          const scheme = env.get(binding.identifier.name);
+          if (scheme) {
+            const solvedType = applySubstitution(substitution, scheme.type);
+            env.set(binding.identifier.name, { ...scheme, type: solvedType });
+          }
         }
       }
     }
@@ -531,9 +539,7 @@ export class TypeInferrer {
     // Process statements
     for (const stmt of expr.statements) {
       if (stmt.kind === "LetStatement") {
-        const valueType = this.inferExpression(stmt.initializer, newEnv);
-        const scheme = generalize(newEnv, valueType);
-        newEnv.set(stmt.identifier.name, scheme);
+        this.inferBindingGroup(stmt.bindings, newEnv);
       } else if (stmt.kind === "ExpressionStatement") {
         this.inferExpression(stmt.expression, newEnv);
       }
@@ -544,42 +550,53 @@ export class TypeInferrer {
   }
 
   private inferVariableDeclaration(expr: VariableDeclaration, env: TypeEnv): Type {
-    // Check if there's a type annotation
-    let annotatedType: Type | null = null;
-    if ((expr as any).typeAnnotation) {
-      annotatedType = this.typeExpressionToType((expr as any).typeAnnotation.type);
+    const types = this.inferBindingGroup(expr.bindings, env);
+    return types[types.length - 1];
+  }
+
+  private inferBindingGroup(bindings: VariableBinding[], env: TypeEnv): Type[] {
+    if (bindings.length === 0) {
+      throw new TypeError("Let binding group must contain at least one binding");
     }
 
-    // Special handling for recursive functions
-    if (expr.initializer.kind === "FunctionExpression") {
-      // Pre-declare the function with the annotated type or a fresh type variable
-      const funcType = annotatedType || freshTypeVar();
-      const tempScheme = { type: funcType, typeVars: [] };
-      env.set(expr.identifier.name, tempScheme);
+    const assumedTypes = new Map<string, Type>();
+    const annotatedTypes = new Map<string, Type | null>();
 
-      // Now infer the function type with the function itself in scope
-      const actualType = this.inferExpression(expr.initializer, env);
+    // Pre-declare all bindings to support mutual recursion
+    for (const binding of bindings) {
+      const annotation = binding.typeAnnotation
+        ? this.typeExpressionToType(binding.typeAnnotation.type)
+        : null;
+      annotatedTypes.set(binding.identifier.name, annotation);
 
-      // Unify the assumed type with the actual type
-      this.addConstraint(funcType, actualType);
+      const assumedType = annotation ?? freshTypeVar(binding.identifier.name);
+      assumedTypes.set(binding.identifier.name, assumedType);
+      env.set(binding.identifier.name, { type: assumedType, typeVars: [] });
+    }
 
-      // Update the environment with the correct scheme
-      const scheme = generalize(env, actualType);
-      env.set(expr.identifier.name, scheme);
-      return actualType;
-    } else {
-      // Regular variable declaration
-      const valueType = this.inferExpression(expr.initializer, env);
+    const resultTypes: Type[] = [];
 
-      // If there's a type annotation, allow width subtyping: value ≤ annotation
-      if (annotatedType) {
-        this.enforceSubtype(valueType, annotatedType);
+    for (const binding of bindings) {
+      const assumedType = assumedTypes.get(binding.identifier.name)!;
+      const annotation = annotatedTypes.get(binding.identifier.name);
+
+      const actualType = this.inferExpression(binding.initializer, env);
+
+      // Ensure the actual type matches the assumed type
+      this.addConstraint(actualType, assumedType);
+
+      if (annotation) {
+        // Allow width subtyping for annotations
+        this.enforceSubtype(actualType, annotation);
       }
 
-      const scheme = generalize(env, annotatedType || valueType);
-      env.set(expr.identifier.name, scheme);
-      return annotatedType || valueType;
+      const finalType = annotation ?? actualType;
+      const scheme = generalize(env, finalType);
+      env.set(binding.identifier.name, scheme);
+      resultTypes.push(finalType);
     }
+
+    return resultTypes;
   }
 
   private primitiveToType(primitive: string): Type {
@@ -1070,7 +1087,7 @@ export class TypeInferrer {
   }
 
   // Public method to infer and solve
-  inferAndSolve(program: Program): TypeEnv {
-    return this.infer(program);
+  inferAndSolve(program: Program, envOverride?: TypeEnv): TypeEnv {
+    return this.infer(program, envOverride);
   }
 }
