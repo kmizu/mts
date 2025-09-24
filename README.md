@@ -5,7 +5,8 @@
 
 MTSは[toranoana.deno #22](https://yumenosora.connpass.com/event/366823/)のLT発表用に作成したプログラミング言語です。
 
-**Hindley-Milner型推論**と**構造的部分型**を持つ関数型プログラミング言語で、特筆すべきものはありませんが、TypeScript/Deno +
+**Hindley-Milner型推論**と**列多相性（Row
+Polymorphism）**を持つ関数型プログラミング言語で、特筆すべきものはありませんが、TypeScript/Deno +
 Claude Codeオンリーで実装したのが特徴です。
 
 ## ✨ 特徴
@@ -14,22 +15,25 @@ Claude Codeオンリーで実装したのが特徴です。
 
 - **式ベース構文** - すべてが式として扱われる
 - **Hindley-Milner型推論** - 多相性を持つ自動型推論
-- **構造的部分型** - 柔軟なオブジェクト互換性
+- **列多相性** - 追加フィールドを許可する柔軟なオブジェクト型
 - **静的型検査** - 実行前のエラー検出
 - **第一級関数** - クロージャを持つ関数値
 - **再帰関数** - 自己参照関数定義
+- **辞書/連想配列** - 任意の型をキーとする連想配列
 
 ### 📊 型システム
 
 - **let多相性** - 汎用関数が複数の型で動作
 - **型変数** - 自動的な一般化とインスタンス化
-- **構造的型付け** - 追加フィールドを持つオブジェクトの互換性
+- **列多相性** - 行変数（ρ）による開いたレコード型の表現
+- **構造的部分型** - TypeScriptライクなサブタイピング
 - **型統合** - 自動的な制約解決
 - **occurs check** - 無限型の防止
 
 ### 🔧 組み込み関数
 
 - **配列操作**: `length`, `head`, `tail`, `push`, `empty`
+- **辞書操作**: 任意のキー・値型をサポートする連想配列
 - **文字列操作**: `concat`, `substring`, `strlen`
 - **数学関数**: `sqrt`, `abs`, `floor`, `ceil`
 - **I/O関数**: `print`, `println`, `readText`, `writeText`
@@ -71,12 +75,14 @@ deno task start examples/hello.mts
 
 ```bash
 deno task start -e "let x = 42; x * 2"
+deno task start -e 'let dict = ["name": "Alice", "age": "30"]; dict["name"]'
 ```
 
 ### 型チェック
 
 ```bash
 deno task start -t "(x, y) => x + y"
+deno task start -t '["key": "value", "num": 42]'
 ```
 
 ## 📖 言語ガイド
@@ -98,7 +104,7 @@ let apply = (f, x) => f(x);
 let compose = (f, g) => (x) => f(g(x));
 ```
 
-### 配列とオブジェクト
+### 配列、辞書、オブジェクト
 
 ```javascript
 // 配列
@@ -106,6 +112,19 @@ let numbers = [1, 2, 3, 4, 5];
 let first = head(numbers);
 let rest = tail(numbers);
 let len = length(numbers);
+
+// 辞書/連想配列
+let userDict = ["name": "Alice", "age": "30", "city": "Tokyo"];
+let userName = userDict["name"];
+let userAge = userDict["age"];
+
+// 数字キーの辞書
+let monthNames = [1: "January", 2: "February", 3: "March"];
+let firstMonth = monthNames[1];
+
+// 型注釈付き辞書
+let scores: Dict<string, number> = ["math": 95, "science": 87];
+let inventory: [string : number] = ["apples": 50, "oranges": 30];
 
 // オブジェクト
 let person = {
@@ -118,6 +137,14 @@ let personName = person.name;
 // ネストした構造
 let matrix = [[1, 2], [3, 4]];
 let element = matrix[0][1];
+
+// 辞書とオブジェクトの組み合わせ
+let userProfiles = [
+  "alice": { name: "Alice", age: 30 },
+  "bob": { name: "Bob", age: 25 }
+];
+let aliceProfile = userProfiles["alice"];
+let aliceName = aliceProfile.name;
 ```
 
 ### 制御フロー
@@ -181,17 +208,38 @@ let numPair = pair(1, 2);
 let mixedPair = pair("hello", 42);
 ```
 
-### 構造的部分型
+### 列多相性（Row Polymorphism）
 
 ```javascript
 // 関数は追加フィールドを持つオブジェクトを受け入れる
+// getXの型: ({ x: T | ρ }) => T （ρは追加フィールドを表す行変数）
 let getX = (obj) => obj.x;
+let sumXY = (p) => p.x + p.y; // 型: ({ x: number, y: number | ρ }) => number
+
 let point2d = { x: 1, y: 2 };
 let point3d = { x: 1, y: 2, z: 3 };
 
 let x1 = getX(point2d); // ✅ 動作する
 let x2 = getX(point3d); // ✅ 同様に動作（追加フィールドzは無視される）
+let sum = sumXY(point3d); // ✅ 複数フィールドアクセスも動作（zは無視される）
 ```
+
+### 構造的部分型（Structural Subtyping）
+
+MTSは幅方向の構造的部分型と関数の反変/共変をサポートします。
+
+```javascript
+// 幅部分型: { x, y } ≤ { x }
+let f = (p) => p.x; // ({ x: T | ρ }) => T
+let r = ((g) => g({ x: 1, y: 2 }))(f); // fは{x}を受けるが{x,y}でもOK
+
+// if式の合流: 共通フィールドで合流
+let v = if (true) { x: 1, y: 2 } else { x: 0, z: 9 };
+let vx = v.x; // vの型は{ x: number }として扱われる
+```
+
+サンプル: `examples/structural_subtyping.mts`（幅部分型の基本）、
+`examples/function_subtyping.mts`（関数の部分型）、 `examples/if_structural_join.mts`（if合流）。
 
 ## 🎨 サンプルプログラム
 
@@ -247,6 +295,54 @@ let factorial = (n) => {
 factorial(5); // 戻り値: 120
 ```
 
+### 辞書/連想配列
+
+```javascript
+// examples/dictionaries.mts
+let person = ["name": "Alice", "age": 30, "city": "Tokyo"];
+let name = person["name"];
+let age = person["age"];
+
+// 数字キーの辞書
+let numbers = [1: "one", 2: "two", 3: "three"];
+let first = numbers[1];
+
+// 動的キー
+let key = "dynamic";
+let dynamicDict = [key: "computed key value"];
+let value = dynamicDict[key];
+
+// ネストした辞書
+let config = [
+  "database": ["host": "localhost", "port": 5432],
+  "cache": ["host": "redis.local", "port": 6379]
+];
+let dbHost = config["database"]["host"];
+
+name; // 戻り値: "Alice"
+```
+
+### 列多相性（Row Polymorphism）
+
+```javascript
+// examples/row_polymorphism.mts
+let getX = (obj) => obj.x; // 型: ({ x: T | ρ }) => T
+let sumXY = (p) => p.x + p.y; // 型: ({ x: number, y: number | ρ }) => number
+let sumXYZ = (p) => p.x + p.y + p.z; // 型: ({ x: number, y: number, z: number | ρ }) => number
+
+let point2d = { x: 1, y: 2 };
+let point3d = { x: 1, y: 2, z: 3 };
+let point4d = { x: 5, y: 10, z: 15, w: 20 };
+
+// 行多相性により、必要なフィールドがあれば追加フィールドは無視される
+let x1 = getX(point2d); // ✅ Works - has x
+let x2 = getX(point3d); // ✅ Works - has x (z ignored)
+let sum1 = sumXY(point3d); // ✅ Works - has x,y (z ignored)
+let sum2 = sumXYZ(point4d); // ✅ Works - has x,y,z (w ignored)
+
+sum2; // 戻り値: 30
+```
+
 ## 🧪 開発
 
 ### テスト実行
@@ -299,7 +395,7 @@ deno task start --help
 
 - **字句解析器** (`src/lexer.ts`) - トークン化
 - **構文解析器** (`src/parser.ts`) - AST生成
-- **型推論器** (`src/infer.ts`) - 構造的部分型を持つHM型推論
+- **型推論器** (`src/infer.ts`) - 列多相性を持つHM型推論
 - **評価器** (`src/evaluator.ts`) - ランタイム実行
 - **組み込み関数** (`src/builtins.ts`) - 標準ライブラリ関数
 
@@ -307,18 +403,20 @@ deno task start --help
 
 - **Hindley-Milnerアルゴリズム** - let多相性を持つ型推論
 - **統合** - occurs check付き制約解決
-- **構造的部分型** - 構造に基づくオブジェクト互換性
+- **列多相性** - 行変数による開いたレコード型の推論
 - **一般化/インスタンス化** - 自動的な多相型処理
 
 ## 📊 テストカバレッジ
 
 - **字句解析器**: 全トークンとエッジケースをカバーする15+テスト
-- **構文解析器**: 全構文構造をカバーする30+テスト
-- **型推論**: エッジケースと多相性を含む60+テスト
-- **評価器**: ランタイム動作をカバーする40+テスト
+- **構文解析器**: 辞書と配列を含む全構文構造の35+テスト
+- **型推論**: 辞書型推論を含むエッジケースと多相性の70+テスト
+- **評価器**: 辞書操作を含むランタイム動作の50+テスト
 - **組み込み関数**: 全標準ライブラリ関数の18+テスト
+- **型注釈**: 配列・辞書型注釈を含む30+テスト
+- **高度な型推論**: 列多相性等の複雑な型推論の30+テスト
 
-合計: **150+の包括的テスト**
+合計: **276の包括的テスト** (10のテストファイル、21のサンプル例)
 
 ### 🔄 継続的インテグレーション
 
@@ -337,7 +435,7 @@ deno lint                   # Lintチェック
 | 機能               | MTS | TypeScript | OCaml | Haskell |
 | ------------------ | --- | ---------- | ----- | ------- |
 | HM型推論           | ✅  | ❌         | ✅    | ✅      |
-| 構造的部分型       | ✅  | ✅         | ❌    | ❌      |
+| 列多相性           | ✅  | ❌         | ✅    | ❌      |
 | 第一級関数         | ✅  | ✅         | ✅    | ✅      |
 | パターンマッチング | ✅  | ✅         | ✅    | ✅      |
 | 再帰関数           | ✅  | ✅         | ✅    | ✅      |

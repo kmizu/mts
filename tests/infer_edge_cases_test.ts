@@ -433,7 +433,7 @@ Deno.test("Type Inference - clear error for object field mismatch", () => {
       `);
     },
     TypeError,
-    "Missing field",
+    "missing fields",
   );
 });
 

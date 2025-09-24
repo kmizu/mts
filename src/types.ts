@@ -7,6 +7,13 @@ export type TypeVar = {
   name?: string;
 };
 
+// Row variables for row polymorphism
+export type RowVar = {
+  kind: "RowVar";
+  id: number;
+  name?: string;
+};
+
 // Primitive types
 export type NumberType = {
   kind: "NumberType";
@@ -45,10 +52,16 @@ export type DictType = {
   valueType: Type;
 };
 
-// Object/Record type
+// Row types for row polymorphism
+export type Row = {
+  fields: Map<string, Type>;
+  rowVar?: RowVar; // The "rest" of the row
+};
+
+// Object/Record type with row polymorphism
 export type ObjectType = {
   kind: "ObjectType";
-  fields: Map<string, Type>;
+  row: Row;
 };
 
 // Function type
@@ -61,6 +74,7 @@ export type FunctionType = {
 // Union of all types
 export type Type =
   | TypeVar
+  | RowVar
   | NumberType
   | StringType
   | BooleanType
@@ -92,11 +106,20 @@ export type Constraint = {
 
 // Helper functions for creating types
 let typeVarCounter = 0;
+let rowVarCounter = 0;
 
 export function freshTypeVar(name?: string): TypeVar {
   return {
     kind: "TypeVar",
     id: typeVarCounter++,
+    name,
+  };
+}
+
+export function freshRowVar(name?: string): RowVar {
+  return {
+    kind: "RowVar",
+    id: rowVarCounter++,
     name,
   };
 }
@@ -140,10 +163,17 @@ export function dictType(keyType: Type, valueType: Type): DictType {
   };
 }
 
-export function objectType(fields: Map<string, Type>): ObjectType {
+export function objectType(fields: Map<string, Type>, rowVar?: RowVar): ObjectType {
   return {
     kind: "ObjectType",
-    fields,
+    row: { fields, rowVar },
+  };
+}
+
+export function objectTypeWithRow(row: Row): ObjectType {
+  return {
+    kind: "ObjectType",
+    row,
   };
 }
 
@@ -156,6 +186,14 @@ export function functionType(paramTypes: Type[], returnType: Type): FunctionType
 }
 
 // Apply substitution to a type
+function applyRowSubstitution(sub: Substitution, rowVar: RowVar): RowVar | undefined {
+  const replacement = sub.get(rowVar.id);
+  if (replacement && replacement.kind === "RowVar") {
+    return replacement as RowVar;
+  }
+  return rowVar;
+}
+
 export function applySubstitution(sub: Substitution, type: Type): Type {
   switch (type.kind) {
     case "TypeVar":
@@ -167,15 +205,21 @@ export function applySubstitution(sub: Substitution, type: Type): Type {
     case "DictType":
       return dictType(
         applySubstitution(sub, type.keyType),
-        applySubstitution(sub, type.valueType)
+        applySubstitution(sub, type.valueType),
       );
 
     case "ObjectType": {
       const newFields = new Map<string, Type>();
-      for (const [key, fieldType] of type.fields) {
+      for (const [key, fieldType] of type.row.fields) {
         newFields.set(key, applySubstitution(sub, fieldType));
       }
-      return objectType(newFields);
+      const newRowVar = type.row.rowVar ? applyRowSubstitution(sub, type.row.rowVar) : undefined;
+      return objectType(newFields, newRowVar);
+    }
+
+    case "RowVar": {
+      const replacement = sub.get(type.id);
+      return replacement || type;
     }
 
     case "FunctionType":
@@ -225,13 +269,19 @@ export function freeTypeVars(type: Type): Set<number> {
 
     case "ObjectType": {
       const result = new Set<number>();
-      for (const fieldType of type.fields.values()) {
+      for (const fieldType of type.row.fields.values()) {
         for (const id of freeTypeVars(fieldType)) {
           result.add(id);
         }
       }
+      if (type.row.rowVar) {
+        result.add(type.row.rowVar.id);
+      }
       return result;
     }
+
+    case "RowVar":
+      return new Set([type.id]);
 
     case "FunctionType": {
       const result = new Set<number>();
@@ -318,13 +368,20 @@ export function typesEqual(t1: Type, t2: Type): boolean {
 
     case "ObjectType": {
       const o2 = t2 as ObjectType;
-      if (t1.fields.size !== o2.fields.size) return false;
-      for (const [key, type1] of t1.fields) {
-        const type2 = o2.fields.get(key);
+      if (t1.row.fields.size !== o2.row.fields.size) return false;
+      for (const [key, type1] of t1.row.fields) {
+        const type2 = o2.row.fields.get(key);
         if (!type2 || !typesEqual(type1, type2)) return false;
       }
-      return true;
+      // Check row variables
+      if (t1.row.rowVar && o2.row.rowVar) {
+        return t1.row.rowVar.id === o2.row.rowVar.id;
+      }
+      return !t1.row.rowVar && !o2.row.rowVar;
     }
+
+    case "RowVar":
+      return t2.kind === "RowVar" && t1.id === (t2 as RowVar).id;
 
     case "FunctionType": {
       const f2 = t2 as FunctionType;
@@ -362,11 +419,17 @@ export function typeToString(type: Type): string {
     case "DictType":
       return `[${typeToString(type.keyType)} : ${typeToString(type.valueType)}]`;
     case "ObjectType": {
-      const fields = Array.from(type.fields.entries())
+      const fields = Array.from(type.row.fields.entries())
         .map(([key, fieldType]) => `${key}: ${typeToString(fieldType)}`)
         .join(", ");
-      return `{ ${fields} }`;
+      const rowVarStr = type.row.rowVar
+        ? ` | ${type.row.rowVar.name || `ρ${type.row.rowVar.id}`}`
+        : "";
+      return `{ ${fields}${rowVarStr} }`;
     }
+
+    case "RowVar":
+      return type.name || `ρ${type.id}`;
     case "FunctionType": {
       const params = type.paramTypes.map(typeToString).join(", ");
       return `(${params}) => ${typeToString(type.returnType)}`;

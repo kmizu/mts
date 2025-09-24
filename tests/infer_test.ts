@@ -121,7 +121,7 @@ Deno.test("Type Inference - simple object", () => {
   const scheme = env.get("person");
   assertEquals(scheme?.type.kind, "ObjectType");
 
-  const fields = (scheme?.type as any).fields;
+  const fields = (scheme?.type as any).row.fields;
   assertEquals(fields.get("name").kind, "StringType");
   assertEquals(fields.get("age").kind, "NumberType");
 });
@@ -130,7 +130,7 @@ Deno.test("Type Inference - empty object", () => {
   const env = inferType("let obj = {}");
   const scheme = env.get("obj");
   assertEquals(scheme?.type.kind, "ObjectType");
-  assertEquals((scheme?.type as any).fields.size, 0);
+  assertEquals((scheme?.type as any).row.fields.size, 0);
 });
 
 // ========== Function Type Inference ==========
@@ -259,7 +259,7 @@ Deno.test("Type Inference - nested objects", () => {
   const scheme = env.get("user");
   assertEquals(scheme?.type.kind, "ObjectType");
 
-  const fields = (scheme?.type as any).fields;
+  const fields = (scheme?.type as any).row.fields;
   assertEquals(fields.get("profile").kind, "ObjectType");
   assertEquals(fields.get("active").kind, "BooleanType");
 });
@@ -337,7 +337,7 @@ Deno.test("Type Inference - mixed value dictionary", () => {
   assertThrows(
     () => inferType('let mixed = ["str": "hello", "num": 42]'),
     TypeError,
-    "Cannot unify types"
+    "Cannot unify types",
   );
 });
 

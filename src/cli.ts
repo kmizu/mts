@@ -4,7 +4,7 @@ import { Parser } from "./parser.ts";
 import { TypeInferrer } from "./infer.ts";
 import { Evaluator } from "./evaluator.ts";
 import { REPL } from "./repl.ts";
-import { typeToString } from "./types.ts";
+import { applySubstitution, typeToString } from "./types.ts";
 
 function printUsage(): void {
   console.log("MTS - A functional programming language with HM type inference");
@@ -148,11 +148,15 @@ function showType(expression: string): void {
       Deno.exit(1);
     }
 
-    // Type inference
+    // Type inference with constraint solving
     const inferrer = new TypeInferrer();
     const typeEnv = inferrer.createInitialEnv();
     const exprType = inferrer.inferExpression(ast.body[0], typeEnv);
-    const typeStr = typeToString(exprType);
+
+    // Solve constraints to get the complete type
+    const substitution = inferrer.solveConstraints();
+    const solvedType = applySubstitution(substitution, exprType);
+    const typeStr = typeToString(solvedType);
 
     console.log(`${expression} : ${typeStr}`);
   } catch (error) {
