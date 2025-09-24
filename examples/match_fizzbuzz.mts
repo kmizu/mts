@@ -24,7 +24,7 @@ let test = () => {
   let r6 = fizzbuzz(6);
   let r15 = fizzbuzz(15);
 
-  concat(concat(concat(concat(concat(concat(r1, ", "), r3), ", "), r5), ", "), r15)
+  concat(concat(concat(concat(concat(concat(r1, ", "), r3), ", "), r5), ", "), r15);
 };
 
-test()
+test();
