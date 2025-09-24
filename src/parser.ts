@@ -86,12 +86,23 @@ export class Parser {
   private parseLetExpression(): Expression {
     if (this.match("LET")) {
       const identifier = this.consumeIdentifier();
+
+      // Optional type annotation
+      let typeAnnotation = undefined;
+      if (this.match("COLON")) {
+        typeAnnotation = {
+          kind: "TypeAnnotation",
+          type: this.parseTypeExpression(),
+        };
+      }
+
       this.consume("EQUAL", "Expected '=' after identifier in let expression");
       const initializer = this.parseExpression();
 
       return {
         kind: "VariableDeclaration",
         identifier,
+        typeAnnotation,
         initializer,
       } as VariableDeclaration;
     }
@@ -760,10 +771,34 @@ export class Parser {
         };
       }
 
+      // Array<T> syntax
+      if (name === "Array" && this.match("LESS")) {
+        const elementType = this.parseTypeExpression();
+        this.consume("GREATER", "Expected '>' after array element type");
+
+        return {
+          kind: "ArrayTypeExpression",
+          elementType,
+          loc: this.previous().location,
+        };
+      }
+
       // Type variable
       return {
         kind: "TypeVariable",
         name,
+        loc: this.previous().location,
+      };
+    }
+
+    // Array type: [elementType]
+    if (this.match("LEFT_BRACKET")) {
+      const elementType = this.parseTypeExpression();
+      this.consume("RIGHT_BRACKET", "Expected ']' after array element type");
+
+      return {
+        kind: "ArrayTypeExpression",
+        elementType,
         loc: this.previous().location,
       };
     }

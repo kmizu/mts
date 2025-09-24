@@ -387,10 +387,16 @@ export class TypeInferrer {
   }
 
   private inferVariableDeclaration(expr: VariableDeclaration, env: TypeEnv): Type {
+    // Check if there's a type annotation
+    let annotatedType: Type | null = null;
+    if ((expr as any).typeAnnotation) {
+      annotatedType = this.typeExpressionToType((expr as any).typeAnnotation.type);
+    }
+
     // Special handling for recursive functions
     if (expr.initializer.kind === "FunctionExpression") {
-      // Pre-declare the function with a fresh type variable
-      const funcType = freshTypeVar();
+      // Pre-declare the function with the annotated type or a fresh type variable
+      const funcType = annotatedType || freshTypeVar();
       const tempScheme = { type: funcType, typeVars: [] };
       env.set(expr.identifier.name, tempScheme);
 
@@ -407,9 +413,34 @@ export class TypeInferrer {
     } else {
       // Regular variable declaration
       const valueType = this.inferExpression(expr.initializer, env);
-      const scheme = generalize(env, valueType);
+
+      // If there's a type annotation, check it matches the inferred type
+      if (annotatedType) {
+        this.addConstraint(valueType, annotatedType);
+      }
+
+      const scheme = generalize(env, annotatedType || valueType);
       env.set(expr.identifier.name, scheme);
-      return valueType;
+      return annotatedType || valueType;
+    }
+  }
+
+  private primitiveToType(primitive: string): Type {
+    switch (primitive) {
+      case "number":
+        return numberType();
+      case "string":
+        return stringType();
+      case "boolean":
+        return booleanType();
+      case "null":
+        return nullType();
+      case "undefined":
+        return undefinedType();
+      case "unit":
+        return unitType();
+      default:
+        throw new TypeError(`Unknown primitive type: ${primitive}`);
     }
   }
 

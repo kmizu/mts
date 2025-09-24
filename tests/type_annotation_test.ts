@@ -24,6 +24,22 @@ function evaluateWithAnnotation(source: string) {
   return evaluator.evaluate(ast);
 }
 
+function inferType(source: string) {
+  const parser = new Parser(source);
+  const ast = parser.parse();
+  const inferrer = new TypeInferrer();
+  return inferrer.infer(ast);
+}
+
+function evaluate(source: string) {
+  const parser = new Parser(source);
+  const ast = parser.parse();
+  const inferrer = new TypeInferrer();
+  inferrer.inferAndSolve(ast);
+  const evaluator = new Evaluator();
+  return evaluator.evaluate(ast);
+}
+
 // ========== Type Annotation Parsing Tests ==========
 
 Deno.test("Type Annotation - basic parameter type", () => {
@@ -312,4 +328,59 @@ Deno.test("Type Annotation - closures with type annotations", () => {
   `);
 
   assertEquals(result, 15);
+});
+
+// ========== Array Type Annotations ==========
+
+Deno.test("Type Annotation - Array<T> syntax", () => {
+  const env = inferType(`
+    let nums: Array<number> = [1, 2, 3];
+    let strs: Array<string> = ["a", "b", "c"];
+    nums
+  `);
+  const scheme = env.get("nums");
+  assertEquals(scheme?.type.kind, "ArrayType");
+  assertEquals((scheme?.type as any).elementType.kind, "NumberType");
+});
+
+Deno.test("Type Annotation - [T] syntax", () => {
+  const env = inferType(`
+    let nums: [number] = [1, 2, 3];
+    let strs: [string] = ["hello", "world"];
+    nums
+  `);
+  const scheme = env.get("nums");
+  assertEquals(scheme?.type.kind, "ArrayType");
+  assertEquals((scheme?.type as any).elementType.kind, "NumberType");
+});
+
+Deno.test("Type Annotation - nested arrays", () => {
+  const env = inferType(`
+    let matrix: Array<Array<number>> = [[1, 2], [3, 4]];
+    let cube: [[[string]]] = [[["a"]]];
+    matrix
+  `);
+  const scheme = env.get("matrix");
+  assertEquals(scheme?.type.kind, "ArrayType");
+  const elementType = (scheme?.type as any).elementType;
+  assertEquals(elementType.kind, "ArrayType");
+  assertEquals(elementType.elementType.kind, "NumberType");
+});
+
+Deno.test("Type Annotation - array type mismatch error", () => {
+  assertThrows(() => {
+    inferType(`
+      let nums: Array<string> = [1, 2, 3];
+      nums
+    `);
+  });
+});
+
+Deno.test("Type Annotation - array runtime execution", () => {
+  const result = evaluate(`
+    let nums: [number] = [1, 2, 3];
+    let sum: number = nums[0] + nums[1] + nums[2];
+    sum
+  `);
+  assertEquals(result, 6);
 });
